@@ -20,6 +20,7 @@
 
 #![no_std]
 
+mod timelock;
 mod signers;
 
 // The helpers are only needed by tests; gate them so the contract itself stays

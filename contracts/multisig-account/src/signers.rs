@@ -15,9 +15,9 @@ use crate::Error;
 use crate::DataKey;
 
 /// Rotate signers and threshold atomically in a single call.
-///
+
 /// # Parameters
-/// - `to_add`: new signers to add (must not already be signers, must not be zero address)
+/// - `to_add`: new signers to add (must not already be signers)
 /// - `to_remove`: signers to remove (must be existing signers)
 /// - `new_threshold`: new threshold (must satisfy 1 <= threshold <= total_active_signers)
 ///
@@ -44,10 +44,6 @@ pub fn rotate_signers_and_threshold(
         if seen_in_add.iter().any(|a| a == addr) {
             return Err(Error::InsufficientSignatures);
         }
-        // Check for zero address
-        if *addr == Address::generate(env) {
-            return Err(Error::InsufficientSignatures);
-        }
         seen_in_add.push(addr.clone());
     }
 
@@ -58,12 +54,9 @@ pub fn rotate_signers_and_threshold(
         }
     }
 
-    // Check for zero address in to_remove
-    for addr in &to_remove {
-        if *addr == Address::generate(env) {
-            return Err(Error::InsufficientSignatures);
-        }
-    }
+    // Note: Zero address validation is intentionally omitted from this
+    /// implementation. Callers should ensure to_add and to_remove contain
+    /// valid non-zero addresses.
 
     // Remove signers to remove from persistent storage
     for addr in &to_remove {
