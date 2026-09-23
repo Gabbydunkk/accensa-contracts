@@ -10,6 +10,32 @@ breaking changes bump the **minor** version, and they are called out as such.
 
 ### Added
 
+- **Canonical receipt event schema for `ReceiptAnchor` (issue #379):** all
+  receipt-scoped events (`anchor`, `prune`) are now published under a unified
+  topic tuple `("receipt", action, anchor_id)` with a versioned data map
+  (`schema_version`, `timestamp`, plus action-specific fields). An indexer
+  subscribes to a single topic and routes on the `action` symbol. Payloads
+  always lead with `schema_version` and `timestamp` so a reader can reject
+  incompatible layouts and order logs by wall-clock time.
+
+- **Two-step admin transfer for `ReceiptAnchor` (issue #288):** `transfer_admin`
+  proposes a new admin address (requires current admin auth), and `accept_admin`
+  confirms the transfer (requires proposed admin auth), consuming the pending
+  proposal. `get_pending_admin` lets callers inspect the outstanding proposal.
+  Returns `Error::NoPendingTransfer` when no proposal exists.
+
+- **Integration test suite for `ReceiptAnchor` (issue #289):** added
+  `contracts/receipt-anchor/tests/integration_test.rs` covering admin auth
+  enforcement, duplicate root rejection, batch-size limits, rate-limit refill,
+  the full admin transfer flow (including double-accept rejection), former-admin
+  lockout, pruned-batch unverifiability, and canonical receipt event topics.
+
+- **Comprehensive unit tests for `ReceiptAnchor` (issue #293):** added unit
+  tests for the two-step admin transfer flow (`transfer_admin` / `accept_admin`
+  / `get_pending_admin`), including double-accept rejection and missing-proposal
+  error paths, and a test asserting the exact topics and data map produced by
+  `anchor_batch` under the canonical receipt event schema.
+
 - **Distinct events for every `ReceiptAnchor` state change** (issue #89):
   `prune_batches` now actually emits the long-documented `PruneEvent` — it was
   defined in the code and pinned in `docs/EVENTS.md` but never published —

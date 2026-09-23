@@ -124,8 +124,8 @@ Emits:
 | Event | Topics | Data |
 |---|---|---|
 | `InitializedEvent` | `("initialized_event", merchant)` | `shard_wasm_hash`, `ledger` |
-| `AnchorEvent` | `("anchor_event", shard_id, batch_id)` | `root`, `count`, `period_start`, `period_end`, `anchored_ledger` |
-| `PruneEvent` | `("prune_event", shard_id, start_batch_id)` | `end_batch_id` |
+| `Receipt` anchor action | `("receipt", "anchor", anchor_id)` | `schema_version`, `timestamp`, `root`, `shard_id`, `count`, `period_start`, `period_end`, `anchored_ledger` |
+| `Receipt` prune action | `("receipt", "prune", anchor_id)` | `schema_version`, `timestamp`, `shard_id`, `start_batch_id`, `end_batch_id` |
 | `ShardCreatedEvent` | `("shard_created_event", shard_id, shard_index)` | `shard_address`, `start_batch_id`, `end_batch_id` |
 | `RateLimitUpdatedEvent` | `("rate_limit_updated_event", previous_burst_capacity, previous_refill_interval_secs)` | `new_burst_capacity`, `new_refill_interval_secs`, `ledger` |
 | `AnchorIntervalUpdatedEvent` | `("anchor_interval_updated_event", previous_interval)` | `new_interval`, `ledger` |
