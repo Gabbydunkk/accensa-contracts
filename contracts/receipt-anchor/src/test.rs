@@ -1,4 +1,5 @@
 use super::*;
+use crate::events::SCHEMA_VERSION;
 use soroban_sdk::{
     testutils::{Address as _, Ledger},
     vec, Address, Bytes, BytesN, Env,
@@ -1810,6 +1811,22 @@ fn test_prune_event_emitted_with_deleted_range() {
 
     let mut data = Map::<Val, Val>::new(&env);
     data.set(
+        Symbol::new(&env, "schema_version").into_val(&env),
+        SCHEMA_VERSION.into_val(&env),
+    );
+    data.set(
+        Symbol::new(&env, "timestamp").into_val(&env),
+        env.ledger().timestamp().into_val(&env),
+    );
+    data.set(
+        Symbol::new(&env, "shard_id").into_val(&env),
+        DEFAULT_SHARD.into_val(&env),
+    );
+    data.set(
+        Symbol::new(&env, "start_batch_id").into_val(&env),
+        1u64.into_val(&env),
+    );
+    data.set(
         Symbol::new(&env, "end_batch_id").into_val(&env),
         3u64.into_val(&env),
     );
@@ -1819,7 +1836,12 @@ fn test_prune_event_emitted_with_deleted_range() {
             &env,
             (
                 client.address.clone(),
-                (Symbol::new(&env, "prune_event"), DEFAULT_SHARD, 1u64).into_val(&env),
+                (
+                    Symbol::new(&env, "receipt"),
+                    Symbol::new(&env, "prune"),
+                    1u64
+                )
+                    .into_val(&env),
                 data.into_val(&env)
             )
         ]
@@ -1858,25 +1880,21 @@ fn test_prune_event_isolated_per_shard() {
 
     let mut data = Map::<Val, Val>::new(&env);
     data.set(
-        Symbol::new(&env, "end_batch_id").into_val(&env),
-        2u64.into_val(&env),
+        Symbol::new(&env, "schema_version").into_val(&env),
+        SCHEMA_VERSION.into_val(&env),
     );
-    assert_eq!(
-        env.events().all().filter_by_contract(&client.address),
-        vec![
-            &env,
-            (
-                client.address.clone(),
-                (Symbol::new(&env, "prune_event"), 1u64, 1u64).into_val(&env),
-                data.into_val(&env)
-            )
-        ]
+    data.set(
+        Symbol::new(&env, "timestamp").into_val(&env),
+        env.ledger().timestamp().into_val(&env),
     );
-
-    // ...and pruning shard 2 afterwards reports shard 2's own range.
-    client.prune_batches(&2, &400);
-
-    let mut data = Map::<Val, Val>::new(&env);
+    data.set(
+        Symbol::new(&env, "shard_id").into_val(&env),
+        1u64.into_val(&env),
+    );
+    data.set(
+        Symbol::new(&env, "start_batch_id").into_val(&env),
+        1u64.into_val(&env),
+    );
     data.set(
         Symbol::new(&env, "end_batch_id").into_val(&env),
         2u64.into_val(&env),
@@ -1887,7 +1905,197 @@ fn test_prune_event_isolated_per_shard() {
             &env,
             (
                 client.address.clone(),
-                (Symbol::new(&env, "prune_event"), 2u64, 1u64).into_val(&env),
+                (
+                    Symbol::new(&env, "receipt"),
+                    Symbol::new(&env, "prune"),
+                    1u64
+                )
+                    .into_val(&env),
+                data.into_val(&env)
+            )
+        ]
+    );
+
+    // ...and pruning shard 2 afterwards reports shard 2's own range.
+    client.prune_batches(&2, &400);
+
+    let mut data = Map::<Val, Val>::new(&env);
+    data.set(
+        Symbol::new(&env, "schema_version").into_val(&env),
+        SCHEMA_VERSION.into_val(&env),
+    );
+    data.set(
+        Symbol::new(&env, "timestamp").into_val(&env),
+        env.ledger().timestamp().into_val(&env),
+    );
+    data.set(
+        Symbol::new(&env, "shard_id").into_val(&env),
+        2u64.into_val(&env),
+    );
+    data.set(
+        Symbol::new(&env, "start_batch_id").into_val(&env),
+        1u64.into_val(&env),
+    );
+    data.set(
+        Symbol::new(&env, "end_batch_id").into_val(&env),
+        2u64.into_val(&env),
+    );
+    assert_eq!(
+        env.events().all().filter_by_contract(&client.address),
+        vec![
+            &env,
+            (
+                client.address.clone(),
+                (
+                    Symbol::new(&env, "receipt"),
+                    Symbol::new(&env, "prune"),
+                    1u64
+                )
+                    .into_val(&env),
+                data.into_val(&env)
+            )
+        ]
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Admin transfer tests (issue #293 / #288)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_transfer_admin_proposes_without_changing_current_admin() {
+    let (env, client, merchant) = setup();
+    init(&env, &client, &merchant);
+
+    let new_admin = Address::generate(&env);
+    client.transfer_admin(&new_admin);
+
+    assert_eq!(
+        client.get_admin(),
+        merchant,
+        "current admin must not change"
+    );
+    assert_eq!(client.get_pending_admin(), new_admin);
+}
+
+#[test]
+fn test_accept_admin_completes_two_step_transfer() {
+    let (env, client, merchant) = setup();
+    init(&env, &client, &merchant);
+
+    let new_admin = Address::generate(&env);
+    client.transfer_admin(&new_admin);
+    client.accept_admin();
+
+    assert_eq!(client.get_admin(), new_admin);
+    assert_eq!(
+        client.try_get_pending_admin(),
+        Err(Ok(Error::NoPendingTransfer)),
+        "pending proposal must be cleared after acceptance"
+    );
+    // Former admin is no longer recognized.
+    let _ = merchant; // merchant variable consumed to silence dead-code lint
+}
+
+#[test]
+fn test_get_pending_admin_fails_without_transfer() {
+    let (env, client, merchant) = setup();
+    init(&env, &client, &merchant);
+
+    assert_eq!(
+        client.try_get_pending_admin(),
+        Err(Ok(Error::NoPendingTransfer))
+    );
+}
+
+#[test]
+fn test_accept_admin_fails_without_pending_transfer() {
+    let (env, client, merchant) = setup();
+    init(&env, &client, &merchant);
+
+    assert_eq!(client.try_accept_admin(), Err(Ok(Error::NoPendingTransfer)));
+}
+
+#[test]
+fn test_double_accept_admin_fails() {
+    let (env, client, merchant) = setup();
+    init(&env, &client, &merchant);
+
+    let new_admin = Address::generate(&env);
+    client.transfer_admin(&new_admin);
+    client.accept_admin();
+
+    assert_eq!(
+        client.try_accept_admin(),
+        Err(Ok(Error::NoPendingTransfer)),
+        "second accept must fail once the proposal is consumed"
+    );
+    let _ = merchant;
+}
+
+// ---------------------------------------------------------------------------
+// Anchor event canonical-topic tests (issue #293 / #379)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_anchor_event_uses_canonical_topics() {
+    let (env, client, merchant) = setup();
+    init(&env, &client, &merchant);
+
+    // First call creates the shard (emits shard_created_event too); use a
+    // second call so only the receipt/anchor event appears in events().all().
+    let root1 = BytesN::from_array(&env, &[8u8; 32]);
+    client.anchor_batch(&DEFAULT_SHARD, &root1, &1, &0, &9);
+
+    let root = BytesN::from_array(&env, &[9u8; 32]);
+    client.anchor_batch(&DEFAULT_SHARD, &root, &5, &10, &20);
+
+    let mut data = Map::<Val, Val>::new(&env);
+    data.set(
+        Symbol::new(&env, "schema_version").into_val(&env),
+        SCHEMA_VERSION.into_val(&env),
+    );
+    data.set(
+        Symbol::new(&env, "timestamp").into_val(&env),
+        env.ledger().timestamp().into_val(&env),
+    );
+    data.set(
+        Symbol::new(&env, "root").into_val(&env),
+        root.into_val(&env),
+    );
+    data.set(
+        Symbol::new(&env, "shard_id").into_val(&env),
+        DEFAULT_SHARD.into_val(&env),
+    );
+    data.set(
+        Symbol::new(&env, "count").into_val(&env),
+        5u32.into_val(&env),
+    );
+    data.set(
+        Symbol::new(&env, "period_start").into_val(&env),
+        10u64.into_val(&env),
+    );
+    data.set(
+        Symbol::new(&env, "period_end").into_val(&env),
+        20u64.into_val(&env),
+    );
+    data.set(
+        Symbol::new(&env, "anchored_ledger").into_val(&env),
+        env.ledger().sequence().into_val(&env),
+    );
+
+    assert_eq!(
+        env.events().all().filter_by_contract(&client.address),
+        vec![
+            &env,
+            (
+                client.address.clone(),
+                (
+                    Symbol::new(&env, "receipt"),
+                    Symbol::new(&env, "anchor"),
+                    2u64
+                )
+                    .into_val(&env),
                 data.into_val(&env)
             )
         ]
