@@ -1383,6 +1383,7 @@ version = "0.3.0"
 dependencies = [
  "accensa-common",
  "budget-macros",
+ "ed25519-dalek 3.0.0",
  "multisig-account",
  "proptest",
  "receipt-shard",

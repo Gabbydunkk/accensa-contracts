@@ -1,5 +1,6 @@
 #![no_std]
 
+pub mod signatures;
 pub mod zk_verifier;
 
 use accensa_common::Error;
@@ -1040,6 +1041,8 @@ impl ReceiptAnchor {
 
 #[cfg(test)]
 mod fuzz_test;
+#[cfg(test)]
+mod signatures_test;
 #[cfg(test)]
 mod test;
 

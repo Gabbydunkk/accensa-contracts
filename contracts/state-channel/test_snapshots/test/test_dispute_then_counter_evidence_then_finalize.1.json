@@ -70,10 +70,10 @@
                   "bytes": "8a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c"
                 },
                 {
-                  "i128": "500"
+                  "i128": "1000"
                 },
                 {
-                  "u32": 720
+                  "u32": 10
                 }
               ]
             }
@@ -92,7 +92,7 @@
                       "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMDR4"
                     },
                     {
-                      "i128": "500"
+                      "i128": "1000"
                     }
                   ]
                 }
@@ -103,65 +103,16 @@
         }
       ]
     ],
-    [
-      [
-        "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4",
-        {
-          "function": {
-            "contract_fn": {
-              "contract_address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMDR4",
-              "function_name": "open_channel",
-              "args": [
-                {
-                  "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
-                },
-                {
-                  "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
-                },
-                {
-                  "bytes": "8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394"
-                },
-                {
-                  "i128": "300"
-                },
-                {
-                  "u32": 720
-                }
-              ]
-            }
-          },
-          "sub_invocations": [
-            {
-              "function": {
-                "contract_fn": {
-                  "contract_address": "CCABDO7UZXYE4W6GVSEGSNNZTKSLFQGKXXQTH6OX7M7GKZ4Z6CUJNGZN",
-                  "function_name": "transfer",
-                  "args": [
-                    {
-                      "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
-                    },
-                    {
-                      "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMDR4"
-                    },
-                    {
-                      "i128": "300"
-                    }
-                  ]
-                }
-              },
-              "sub_invocations": []
-            }
-          ]
-        }
-      ]
-    ],
+    [],
+    [],
+    [],
     [],
     [],
     []
   ],
   "ledger": {
     "protocol_version": 27,
-    "sequence_number": 0,
+    "sequence_number": 11,
     "timestamp": 0,
     "network_id": "0000000000000000000000000000000000000000000000000000000000000000",
     "base_reserve": 0,
@@ -240,26 +191,6 @@
               "key": {
                 "ledger_key_nonce": {
                   "nonce": "1033654523790656264"
-                }
-              },
-              "durability": "temporary",
-              "val": "void"
-            }
-          },
-          "ext": "v0"
-        },
-        "live_until": 6311999
-      },
-      {
-        "entry": {
-          "last_modified_ledger_seq": 0,
-          "data": {
-            "contract_data": {
-              "ext": "v0",
-              "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4",
-              "key": {
-                "ledger_key_nonce": {
-                  "nonce": "4837995959683129791"
                 }
               },
               "durability": "temporary",
@@ -363,7 +294,7 @@
                               "symbol": "amount"
                             },
                             "val": {
-                              "i128": "500"
+                              "i128": "1000"
                             }
                           },
                           {
@@ -371,7 +302,7 @@
                               "symbol": "balance"
                             },
                             "val": {
-                              "i128": "0"
+                              "i128": "600"
                             }
                           },
                           {
@@ -379,7 +310,7 @@
                               "symbol": "challenge_period"
                             },
                             "val": {
-                              "u32": 720
+                              "u32": 10
                             }
                           },
                           {
@@ -403,7 +334,7 @@
                               "symbol": "nonce"
                             },
                             "val": {
-                              "u64": "0"
+                              "u64": "3"
                             }
                           },
                           {
@@ -421,7 +352,7 @@
                             "val": {
                               "vec": [
                                 {
-                                  "symbol": "Open"
+                                  "symbol": "Finalized"
                                 }
                               ]
                             }
@@ -457,120 +388,12 @@
                       "key": {
                         "vec": [
                           {
-                            "symbol": "Channel"
-                          },
-                          {
-                            "u64": "2"
-                          }
-                        ]
-                      },
-                      "val": {
-                        "map": [
-                          {
-                            "key": {
-                              "symbol": "amount"
-                            },
-                            "val": {
-                              "i128": "300"
-                            }
-                          },
-                          {
-                            "key": {
-                              "symbol": "balance"
-                            },
-                            "val": {
-                              "i128": "0"
-                            }
-                          },
-                          {
-                            "key": {
-                              "symbol": "challenge_period"
-                            },
-                            "val": {
-                              "u32": 720
-                            }
-                          },
-                          {
-                            "key": {
-                              "symbol": "closed_at"
-                            },
-                            "val": {
-                              "u32": 0
-                            }
-                          },
-                          {
-                            "key": {
-                              "symbol": "disputed_at"
-                            },
-                            "val": {
-                              "u32": 0
-                            }
-                          },
-                          {
-                            "key": {
-                              "symbol": "nonce"
-                            },
-                            "val": {
-                              "u64": "0"
-                            }
-                          },
-                          {
-                            "key": {
-                              "symbol": "opened_at"
-                            },
-                            "val": {
-                              "u32": 0
-                            }
-                          },
-                          {
-                            "key": {
-                              "symbol": "phase"
-                            },
-                            "val": {
-                              "vec": [
-                                {
-                                  "symbol": "Open"
-                                }
-                              ]
-                            }
-                          },
-                          {
-                            "key": {
-                              "symbol": "receiver"
-                            },
-                            "val": {
-                              "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
-                            }
-                          },
-                          {
-                            "key": {
-                              "symbol": "sender"
-                            },
-                            "val": {
-                              "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
-                            }
-                          },
-                          {
-                            "key": {
-                              "symbol": "sender_pubkey"
-                            },
-                            "val": {
-                              "bytes": "8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394"
-                            }
-                          }
-                        ]
-                      }
-                    },
-                    {
-                      "key": {
-                        "vec": [
-                          {
                             "symbol": "ChannelCount"
                           }
                         ]
                       },
                       "val": {
-                        "u64": "2"
+                        "u64": "1"
                       }
                     },
                     {
@@ -631,7 +454,7 @@
                       "symbol": "amount"
                     },
                     "val": {
-                      "i128": "999999200"
+                      "i128": "999999400"
                     }
                   },
                   {
@@ -671,6 +494,58 @@
                     "symbol": "Balance"
                   },
                   {
+                    "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
+                  }
+                ]
+              },
+              "durability": "persistent",
+              "val": {
+                "map": [
+                  {
+                    "key": {
+                      "symbol": "amount"
+                    },
+                    "val": {
+                      "i128": "600"
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "authorized"
+                    },
+                    "val": {
+                      "bool": true
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "clawback"
+                    },
+                    "val": {
+                      "bool": false
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "ext": "v0"
+        },
+        "live_until": 518411
+      },
+      {
+        "entry": {
+          "last_modified_ledger_seq": 0,
+          "data": {
+            "contract_data": {
+              "ext": "v0",
+              "contract": "CCABDO7UZXYE4W6GVSEGSNNZTKSLFQGKXXQTH6OX7M7GKZ4Z6CUJNGZN",
+              "key": {
+                "vec": [
+                  {
+                    "symbol": "Balance"
+                  },
+                  {
                     "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMDR4"
                   }
                 ]
@@ -683,7 +558,7 @@
                       "symbol": "amount"
                     },
                     "val": {
-                      "i128": "800"
+                      "i128": "0"
                     }
                   },
                   {

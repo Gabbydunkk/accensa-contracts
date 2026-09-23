@@ -34,6 +34,7 @@ sha2 = { version = "0.10.9", default-features = false }
 budget_macros = { git = "https://github.com/Tollcraft/soroban-budget-assert.git", branch = "main", package = "budget-macros", optional = true }
 
 [dev-dependencies]
+ed25519-dalek = "3.0"
 multisig-account = { path = "../multisig-account", features = ["testutils"] }
 proptest = "1.4"
 soroban-env-host = "28.0.2"
