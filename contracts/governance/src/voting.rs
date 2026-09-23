@@ -78,7 +78,9 @@ pub fn get_deposit(env: &Env, member: &Address) -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use soroban_sdk::{contract, contractimpl, symbol_short, testutils::Address as _, Env, IntoVal};
+    use soroban_sdk::{
+        contract, contractimpl, symbol_short, testutils::Address as _, Env, IntoVal,
+    };
 
     #[test]
     fn test_quadratic_weight_basic() {

@@ -74,9 +74,25 @@ mod tests {
     fn test_isqrt_perfect_squares() {
         for i in 0..=1_000_000u64 {
             let sqrt_i = isqrt(i);
-            assert!(sqrt_i * sqrt_i <= i, "isqrt({}) = {} but {}^2 = {} > {}", i, sqrt_i, sqrt_i, sqrt_i * sqrt_i, i);
+            assert!(
+                sqrt_i * sqrt_i <= i,
+                "isqrt({}) = {} but {}^2 = {} > {}",
+                i,
+                sqrt_i,
+                sqrt_i,
+                sqrt_i * sqrt_i,
+                i
+            );
             let next = sqrt_i + 1;
-            assert!(next * next > i, "isqrt({}) = {} but {}^2 = {} <= {}", i, sqrt_i, next, next * next, i);
+            assert!(
+                next * next > i,
+                "isqrt({}) = {} but {}^2 = {} <= {}",
+                i,
+                sqrt_i,
+                next,
+                next * next,
+                i
+            );
         }
     }
 

@@ -1,13 +1,3 @@
-//! Timelock delay queue for sensitive admin actions in the multisig account.
-//!
-//! High-risk operations (signer set updates, threshold decreases, code
-//! upgrades) are queued with a mandatory delay (48 hours in ledger
-//! sequence increments). Authorized signers or a guardian can cancel
-//! malicious or erroneous queued actions during the delay window.
-//! Execution is enforced after the timelock elapses and rejected before.
-
-#![no_std]
-
 use soroban_sdk::{Address, Env, Vec};
 
 use crate::Error;
@@ -54,18 +44,14 @@ pub fn queue_transaction(
         .unwrap_or(0u64)
         + 1;
 
-    let queued = QueuedTransaction {
-        call_hash,
-        execution_ledger,
-        approval_count: 0,
-        required_approvals,
-        guardian: guardian.clone(),
-    };
+    let tuple = (call_hash, execution_ledger, 0u32, required_approvals, guardian.clone());
 
     env.storage()
         .persistent()
-        .set(&DataKey::QueuedTransaction(queue_id), &queued);
-    env.storage().instance().set(&DataKey::QueueCount, &queue_id);
+        .set(&DataKey::QueuedTransaction(queue_id), &tuple);
+    env.storage()
+        .instance()
+        .set(&DataKey::QueueCount, &queue_id);
 
     queue_id
 }
@@ -77,18 +63,18 @@ pub fn queue_transaction(
 /// Returns `Err(Error::ProposalNotFound)` if the queue ID does not exist.
 pub fn execute_queued_transaction(env: &Env, queue_id: u64) -> Result<(), Error> {
     let key = DataKey::QueuedTransaction(queue_id);
-    let mut queued: QueuedTransaction = env
+    let tuple: ( [u8; 32], u32, u32, u32, Address ) = env
         .storage()
         .persistent()
         .get(&key)
         .ok_or(Error::ProposalNotFound)?;
 
     let now = env.ledger().sequence();
-    if now < queued.execution_ledger {
+    if now < tuple.1 {
         return Err(Error::TimelockNotExpired);
     }
 
-    if queued.approval_count < queued.required_approvals {
+    if tuple.2 < tuple.3 {
         return Err(Error::InsufficientSignatures);
     }
 
@@ -106,14 +92,14 @@ pub fn cancel_queued_transaction(
     caller: &Address,
 ) -> Result<(), Error> {
     let key = DataKey::QueuedTransaction(queue_id);
-    let mut queued: QueuedTransaction = env
+    let tuple: ( [u8; 32], u32, u32, u32, Address ) = env
         .storage()
         .persistent()
         .get(&key)
         .ok_or(Error::ProposalNotFound)?;
 
     let now = env.ledger().sequence();
-    if now >= queued.execution_ledger {
+    if now >= tuple.1 {
         return Err(Error::TimelockNotExpired);
     }
 
@@ -122,7 +108,7 @@ pub fn cancel_queued_transaction(
         .storage()
         .persistent()
         .get(&DataKey::TimelockGuardian)
-        .unwrap_or(Address::generate(env));
+        .unwrap_or(Address::from_str(env, "X:"));
 
     if *caller != stored_guardian {
         return Err(Error::Unauthorized);
@@ -142,7 +128,7 @@ pub fn approve_queued_transaction(
     signer: &Address,
 ) -> Result<(), Error> {
     let key = DataKey::QueuedTransaction(queue_id);
-    let mut queued: QueuedTransaction = env
+    let tuple: ( [u8; 32], u32, u32, u32, Address ) = env
         .storage()
         .persistent()
         .get(&key)
@@ -154,31 +140,40 @@ pub fn approve_queued_transaction(
     }
 
     env.storage().temporary().set(&approval_key, &());
-    queued.approval_count = queued.approval_count.saturating_add(1);
-    env.storage().persistent().set(&key, &queued);
+    let new_approval_count = tuple.2.saturating_add(1);
+    let new_tuple = (tuple.0, tuple.1, new_approval_count, tuple.3, tuple.4);
+    env.storage().persistent().set(&key, &new_tuple);
 
     Ok(())
 }
 
 /// Read-only: fetch a queued transaction by ID.
 pub fn get_queued_transaction(env: &Env, queue_id: u64) -> Result<QueuedTransaction, Error> {
-    env.storage()
-        .persistent()
-        .get(&DataKey::QueuedTransaction(queue_id))
-        .ok_or(Error::ProposalNotFound)
+    let (call_hash, execution_ledger, approval_count, required_approvals, guardian) =
+        env.storage()
+            .persistent()
+            .get(&DataKey::QueuedTransaction(queue_id))
+            .ok_or(Error::ProposalNotFound)?;
+    Ok(QueuedTransaction {
+        call_hash,
+        execution_ledger,
+        approval_count,
+        required_approvals,
+        guardian,
+    })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use soroban_sdk::Env;
+    use soroban_sdk::{Env, testutils::Ledger};
 
     #[test]
     fn test_queue_and_execute() {
         let env = Env::default();
         env.mock_all_auths();
 
-        let guardian = Address::generate(&env);
+        let guardian = Address::from_str(&env, "X:GDQ");
         let call_hash = [1u8; 32];
 
         let queue_id = queue_transaction(&env, call_hash, 10, 1, guardian.clone());
@@ -194,7 +189,7 @@ mod tests {
         let env = Env::default();
         env.mock_all_auths();
 
-        let guardian = Address::generate(&env);
+        let guardian = Address::from_str(&env, "X:GDQ");
         let call_hash = [1u8; 32];
 
         let queue_id = queue_transaction(&env, call_hash, DEFAULT_TIMELOCK_DELAY, 1, guardian);
@@ -208,7 +203,7 @@ mod tests {
         let env = Env::default();
         env.mock_all_auths();
 
-        let guardian = Address::generate(&env);
+        let guardian = Address::from_str(&env, "X:GDQ");
         let call_hash = [1u8; 32];
 
         let queue_id = queue_transaction(&env, call_hash, DEFAULT_TIMELOCK_DELAY, 1, guardian.clone());
@@ -225,10 +220,11 @@ mod tests {
         let env = Env::default();
         env.mock_all_auths();
 
-        let guardian = Address::generate(&env);
+        let guardian = Address::from_str(&env, "X:GDQ");
         let call_hash = [1u8; 32];
 
         let queue_id = queue_transaction(&env, call_hash, 0, 1, guardian.clone());
+
         env.ledger().with_mut(|l| l.sequence_number += DEFAULT_TIMELOCK_DELAY + 1);
 
         let result = cancel_queued_transaction(&env, queue_id, &guardian);
@@ -240,15 +236,18 @@ mod tests {
         let env = Env::default();
         env.mock_all_auths();
 
-        let guardian = Address::generate(&env);
+        let guardian = Address::from_str(&env, "X:GDQ");
         let call_hash = [1u8; 32];
-        let signer = Address::generate(&env);
+        let signer = Address::from_str(&env, "X:SIGNER");
 
         let queue_id = queue_transaction(&env, call_hash, 10, 1, guardian);
         approve_queued_transaction(&env, queue_id, &signer).unwrap();
 
         env.ledger().with_mut(|l| l.sequence_number += 11);
         let result = execute_queued_transaction(&env, queue_id);
-        assert!(result.is_ok(), "execution after timelock with approvals should succeed");
+        assert!(
+            result.is_ok(),
+            "execution after timelock with approvals should succeed"
+        );
     }
 }

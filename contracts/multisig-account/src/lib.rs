@@ -46,6 +46,10 @@ pub enum Error {
     Unauthorized = 3,
     /// The timelock period has not yet elapsed.
     TimelockNotExpired = 4,
+    /// The requested proposal or queue entry was not found.
+    ProposalNotFound = 5,
+    /// The signer has already approved this transaction.
+    AlreadyVoted = 6,
 }
 
 #[contracttype]
@@ -56,6 +60,12 @@ pub enum DataKey {
     Signer(Address),
     /// Temporary storage per approval: marks a signer has approved a queued transaction.
     TimelockApproval(u64, Address),
+    /// Instance: the next available queue ID counter.
+    QueueCount,
+    /// Guardian address for timelock cancellation.
+    TimelockGuardian,
+    /// Persistent: a queued transaction identified by its queue ID.
+    QueuedTransaction(u64),
 }
 
 /// A threshold account enforcing that `threshold` distinct registered signers

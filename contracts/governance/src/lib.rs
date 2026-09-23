@@ -411,27 +411,7 @@ impl Governance {
             .ok_or(Error::ProposalNotFound)
     }
 
-    /// Read-only: a member's weight, or `0` if not a member.
-    pub fn get_member_weight(env: Env, member: Address) -> u64 {
-        env.storage()
-            .persistent()
-            .get(&DataKey::Member(member))
-            .unwrap_or(0)
-    }
-
-    /// Read-only: whether `member` is registered.
-    pub fn is_member(env: Env, member: Address) -> bool {
-        env.storage().persistent().has(&DataKey::Member(member))
-    }
-
-    /// Read-only: whether `voter` has already voted on `proposal_id`.
-    pub fn has_voted(env: Env, proposal_id: u64, voter: Address) -> bool {
-        env.storage()
-            .temporary()
-            .has(&DataKey::Voted(proposal_id, voter))
-    }
-
-    /// Read-only: a member's quadratic voting weight, or `0` if not a member.
+    /// Read-only: a member's quadratic weight, or `0` if not a member.
     pub fn get_member_weight(env: Env, member: Address) -> u64 {
         quadratic_weight(&env, &member)
     }
@@ -439,6 +419,13 @@ impl Governance {
     /// Read-only: whether `member` is registered.
     pub fn is_member(env: Env, member: Address) -> bool {
         env.storage().persistent().has(&DataKey::MemberDeposit(member))
+    }
+
+    /// Read-only: whether `voter` has already voted on `proposal_id`.
+    pub fn has_voted(env: Env, proposal_id: u64, voter: Address) -> bool {
+        env.storage()
+            .temporary()
+            .has(&DataKey::Voted(proposal_id, voter))
     }
 
     /// Read-only: a member's raw deposit, or `0` if not a member.

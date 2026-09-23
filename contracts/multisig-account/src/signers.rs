@@ -1,15 +1,6 @@
-//! Dynamic threshold rotation for multisig-account signers.
-//!
-//! Supports atomic multi-signer threshold reconfiguration in a single call
-//! to avoid intermediate insecure states when replacing signers.
-//!
-//! Validates invariant: 1 <= new_threshold <= total_active_signers.
-//! Prevents duplicate public keys and zeroed addresses.
-//! Emits SignersRotated audit event.
-
-#![no_std]
-
-use soroban_sdk::{Address, Env, Vec};
+use soroban_sdk{
+    Address, Env, Vec, contractevent, topic,
+};
 
 use crate::Error;
 use crate::DataKey;
@@ -23,7 +14,7 @@ use crate::DataKey;
 ///
 /// # Returns
 /// `Ok(())` on success, or `Err` if validation fails.
-///
+
 /// # Events emitted on success
 /// - [`SignersRotated`](crate::signers::SignersRotated)
 pub fn rotate_signers_and_threshold(
@@ -38,7 +29,7 @@ pub fn rotate_signers_and_threshold(
     }
 
     // Check for duplicate addresses in to_add
-    let mut seen_in_add = Vec::<Address>::new();
+    let mut seen_in_add = Vec::<Address>::new(env);
     for addr in &to_add {
         // Check for duplicates within to_add
         if seen_in_add.iter().any(|a| a == addr) {
@@ -55,8 +46,8 @@ pub fn rotate_signers_and_threshold(
     }
 
     // Note: Zero address validation is intentionally omitted from this
-    /// implementation. Callers should ensure to_add and to_remove contain
-    /// valid non-zero addresses.
+    // implementation. Callers should ensure to_add and to_remove contain
+    // valid non-zero addresses.
 
     // Remove signers to remove from persistent storage
     for addr in &to_remove {
