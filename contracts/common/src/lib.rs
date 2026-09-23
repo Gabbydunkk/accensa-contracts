@@ -168,6 +168,11 @@ pub enum Error {
     InvalidPolicyParams = 318,
     /// A refund/claim was submitted before the minimum cooldown elapsed.
     ClaimCooldownNotElapsed = 320,
+    /// A checked arithmetic operation in a financial math helper over- or
+    /// under-flowed, a conversion would truncate, or a denominator was zero
+    /// (issue #396). The operation was refused *before* any state changed;
+    /// raw operators never run in the shared math helpers.
+    MathOverflow = 321,
 }
 
 /// Parameters for the stateless **time** policy contract (issue #129).
@@ -269,3 +274,4 @@ pub struct VaultInit {
 }
 pub mod audit;
 pub mod blacklist;
+pub mod math;

@@ -28,6 +28,10 @@ pub enum DataKey {
     EndBatchId,
     Batch(u64),
     PrunedUpTo,
+    /// Accrued, unclaimed storage-pruning bounty per cleanup caller
+    /// (issue #395). Instance storage, keyed by the caller that evicted
+    /// expired batches.
+    PruneBounty(Address),
 }
 
 /// Structurally identical to `ReceiptAnchor::BatchRecord`. Soroban cross-contract
@@ -246,4 +250,7 @@ impl ReceiptShard {
     }
 }
 
+pub mod pruning;
+#[cfg(test)]
+mod pruning_test;
 mod test;
