@@ -124,6 +124,78 @@ fn two_merchants_get_distinct_salt_families() {
 }
 
 #[test]
+fn custom_salt_yields_deterministic_derived_address() {
+    let Ctx {
+        env,
+        factory,
+        merchant,
+        ..
+    } = setup();
+    let token = token_for(&env, &merchant);
+
+    let salt = BytesN::from_array(&env, &[0x42; 32]);
+    let expected = factory.compute_vault_address(&salt);
+
+    let a = factory.create_vault(
+        &vault_init(&env, &merchant, &token, 100),
+        &Some(salt.clone()),
+    );
+    assert_eq!(
+        a, expected,
+        "custom salt must reproduce the derived address"
+    );
+    assert_eq!(
+        factory.compute_vault_address(&salt),
+        expected,
+        "the derived address is deterministic"
+    );
+}
+
+#[test]
+fn reused_custom_salt_reverts_with_salt_collision() {
+    let Ctx {
+        env,
+        factory,
+        merchant,
+        ..
+    } = setup();
+    let token = token_for(&env, &merchant);
+
+    let salt = BytesN::from_array(&env, &[0x7f; 32]);
+    factory.create_vault(
+        &vault_init(&env, &merchant, &token, 100),
+        &Some(salt.clone()),
+    );
+
+    assert_eq!(
+        factory.try_create_vault(&vault_init(&env, &merchant, &token, 100), &Some(salt)),
+        Err(Ok(Error::SaltCollision))
+    );
+}
+
+#[test]
+fn custom_salt_is_distinct_from_counter_family() {
+    let Ctx {
+        env,
+        factory,
+        merchant,
+        ..
+    } = setup();
+    let token = token_for(&env, &merchant);
+
+    let custom = factory.create_vault(
+        &vault_init(&env, &merchant, &token, 100),
+        &Some(BytesN::from_array(&env, &[0x11; 32])),
+    );
+    let counted = factory.create_vault(&vault_init(&env, &merchant, &token, 100), &None);
+
+    assert_ne!(
+        custom, counted,
+        "custom salt must not alias the counter family"
+    );
+}
+
+#[test]
 fn factory_defaults_wire_policies_when_merchant_leaves_them_unset() {
     let Ctx {
         env,

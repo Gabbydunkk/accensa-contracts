@@ -73,7 +73,7 @@
                   "i128": "1000"
                 },
                 {
-                  "u32": 720
+                  "u32": 10
                 }
               ]
             }
@@ -307,12 +307,20 @@
                               "symbol": "challenge_period"
                             },
                             "val": {
-                              "u32": 720
+                              "u32": 10
                             }
                           },
                           {
                             "key": {
                               "symbol": "closed_at"
+                            },
+                            "val": {
+                              "u32": 0
+                            }
+                          },
+                          {
+                            "key": {
+                              "symbol": "disputed_at"
                             },
                             "val": {
                               "u32": 0
@@ -341,7 +349,7 @@
                             "val": {
                               "vec": [
                                 {
-                                  "symbol": "Open"
+                                  "symbol": "Disputed"
                                 }
                               ]
                             }

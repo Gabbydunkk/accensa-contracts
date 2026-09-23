@@ -620,10 +620,10 @@
           "v0": {
             "topics": [
               {
-                "symbol": "anchor_event"
+                "symbol": "receipt"
               },
               {
-                "u64": "0"
+                "symbol": "anchor"
               },
               {
                 "u64": "2"
@@ -669,6 +669,30 @@
                   },
                   "val": {
                     "bytes": "0303030303030303030303030303030303030303030303030303030303030303"
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "schema_version"
+                  },
+                  "val": {
+                    "u32": 1
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "shard_id"
+                  },
+                  "val": {
+                    "u64": "0"
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "timestamp"
+                  },
+                  "val": {
+                    "u64": "1060"
                   }
                 }
               ]

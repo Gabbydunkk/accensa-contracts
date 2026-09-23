@@ -338,7 +338,16 @@ fn test_dispute() {
     client.initialize(&_token);
 
     let pk = pubkey_from_signing_key(&env, &sk);
-    let channel_id = make_channel(&env, &client, &sender, &receiver, &pk, 1000, 720);
+    let challenge_period = 10u32;
+    let channel_id = make_channel(
+        &env,
+        &client,
+        &sender,
+        &receiver,
+        &pk,
+        1000,
+        challenge_period,
+    );
 
     let state1 = StateUpdate {
         nonce: 1,
@@ -355,9 +364,11 @@ fn test_dispute() {
     client.dispute(&channel_id, &state2, &sig2);
 
     let ch = client.get_channel(&channel_id);
-    assert_eq!(ch.phase, ChannelPhase::Open);
+    assert_eq!(ch.phase, ChannelPhase::Disputed);
     assert_eq!(ch.nonce, 2);
     assert_eq!(ch.balance, 500);
+    // The dispute records the exact ledger at which it was initiated.
+    assert_eq!(ch.disputed_at, env.ledger().sequence());
 }
 
 #[test]
@@ -635,17 +646,176 @@ fn test_full_lifecycle_dispute() {
     let sig2 = sign_state(&env, &sk, &pk, &state2);
     client.dispute(&channel_id, &state2, &sig2);
 
-    let sig2b = sign_state(&env, &sk, &pk, &state2);
-    client.close_channel(&channel_id, &state2, &sig2b);
-
+    // The dispute settles after its window elapses.
     let ch = client.get_channel(&channel_id);
-    advance_ledger(&env, ch.closed_at + 11);
+    assert_eq!(ch.phase, ChannelPhase::Disputed);
+    advance_ledger(&env, ch.disputed_at + 11);
 
-    client.claim(&channel_id);
+    client.finalize_dispute(&channel_id);
 
     let ch = client.get_channel(&channel_id);
     assert_eq!(ch.phase, ChannelPhase::Finalized);
     assert_eq!(ch.balance, 500);
+}
+
+#[test]
+fn test_dispute_then_counter_evidence_then_finalize() {
+    let (env, sender, receiver, _token, sk) = setup();
+    let contract = env.register(StateChannel, ());
+    let client = StateChannelClient::new(&env, &contract);
+    client.initialize(&_token);
+
+    let pk = pubkey_from_signing_key(&env, &sk);
+    let channel_id = make_channel(&env, &client, &sender, &receiver, &pk, 1000, 10);
+
+    let state1 = StateUpdate {
+        nonce: 1,
+        balance: 100,
+    };
+    let sig1 = sign_state(&env, &sk, &pk, &state1);
+    client.close_channel(&channel_id, &state1, &sig1);
+
+    let state2 = StateUpdate {
+        nonce: 2,
+        balance: 300,
+    };
+    let sig2 = sign_state(&env, &sk, &pk, &state2);
+    client.dispute(&channel_id, &state2, &sig2);
+
+    // Sender replies with counter-evidence: an even newer signed state.
+    let state3 = StateUpdate {
+        nonce: 3,
+        balance: 600,
+    };
+    let sig3 = sign_state(&env, &sk, &pk, &state3);
+    client.submit_counter_evidence(&channel_id, &state3, &sig3);
+
+    let ch = client.get_channel(&channel_id);
+    assert_eq!(ch.phase, ChannelPhase::Disputed);
+    assert_eq!(ch.balance, 600);
+
+    // Counter-evidence re-arms the window from its own submission ledger.
+    advance_ledger(&env, ch.disputed_at + 11);
+    client.finalize_dispute(&channel_id);
+
+    let ch = client.get_channel(&channel_id);
+    assert_eq!(ch.phase, ChannelPhase::Finalized);
+    assert_eq!(ch.balance, 600);
+}
+
+#[test]
+fn test_finalize_dispute_before_window_fails() {
+    let (env, sender, receiver, _token, sk) = setup();
+    let contract = env.register(StateChannel, ());
+    let client = StateChannelClient::new(&env, &contract);
+    client.initialize(&_token);
+
+    let pk = pubkey_from_signing_key(&env, &sk);
+    let channel_id = make_channel(&env, &client, &sender, &receiver, &pk, 1000, 10);
+
+    let state1 = StateUpdate {
+        nonce: 1,
+        balance: 100,
+    };
+    let sig1 = sign_state(&env, &sk, &pk, &state1);
+    client.close_channel(&channel_id, &state1, &sig1);
+
+    let state2 = StateUpdate {
+        nonce: 2,
+        balance: 300,
+    };
+    let sig2 = sign_state(&env, &sk, &pk, &state2);
+    client.dispute(&channel_id, &state2, &sig2);
+
+    // Still inside the dispute window.
+    assert_eq!(
+        client.try_finalize_dispute(&channel_id),
+        Err(Ok(Error::ChallengeActive))
+    );
+}
+
+#[test]
+fn test_finalize_dispute_on_non_disputed_fails() {
+    let (env, sender, receiver, _token, sk) = setup();
+    let contract = env.register(StateChannel, ());
+    let client = StateChannelClient::new(&env, &contract);
+    client.initialize(&_token);
+
+    let pk = pubkey_from_signing_key(&env, &sk);
+    let channel_id = make_channel(&env, &client, &sender, &receiver, &pk, 1000, 10);
+
+    // Channel is still open — nothing to finalize.
+    assert_eq!(
+        client.try_finalize_dispute(&channel_id),
+        Err(Ok(Error::ChannelNotOpen))
+    );
+}
+
+#[test]
+fn test_submit_counter_evidence_after_dispute_window_fails() {
+    let (env, sender, receiver, _token, sk) = setup();
+    let contract = env.register(StateChannel, ());
+    let client = StateChannelClient::new(&env, &contract);
+    client.initialize(&_token);
+
+    let pk = pubkey_from_signing_key(&env, &sk);
+    let channel_id = make_channel(&env, &client, &sender, &receiver, &pk, 1000, 10);
+
+    let state1 = StateUpdate {
+        nonce: 1,
+        balance: 100,
+    };
+    let sig1 = sign_state(&env, &sk, &pk, &state1);
+    client.close_channel(&channel_id, &state1, &sig1);
+
+    let state2 = StateUpdate {
+        nonce: 2,
+        balance: 300,
+    };
+    let sig2 = sign_state(&env, &sk, &pk, &state2);
+    client.dispute(&channel_id, &state2, &sig2);
+
+    let ch = client.get_channel(&channel_id);
+    advance_ledger(&env, ch.disputed_at + 11);
+
+    let state3 = StateUpdate {
+        nonce: 3,
+        balance: 600,
+    };
+    let sig3 = sign_state(&env, &sk, &pk, &state3);
+    assert_eq!(
+        client.try_submit_counter_evidence(&channel_id, &state3, &sig3),
+        Err(Ok(Error::ChallengeExpired))
+    );
+}
+
+#[test]
+fn test_submit_counter_evidence_on_non_disputed_fails() {
+    let (env, sender, receiver, _token, sk) = setup();
+    let contract = env.register(StateChannel, ());
+    let client = StateChannelClient::new(&env, &contract);
+    client.initialize(&_token);
+
+    let pk = pubkey_from_signing_key(&env, &sk);
+    let channel_id = make_channel(&env, &client, &sender, &receiver, &pk, 1000, 10);
+
+    let state1 = StateUpdate {
+        nonce: 1,
+        balance: 100,
+    };
+    let sig1 = sign_state(&env, &sk, &pk, &state1);
+    client.close_channel(&channel_id, &state1, &sig1);
+
+    // Channel is closed but not disputed — counter-evidence is invalid here.
+    let state2 = StateUpdate {
+        nonce: 2,
+        balance: 300,
+    };
+    let sig2 = sign_state(&env, &sk, &pk, &state2);
+    assert_eq!(
+        client.try_submit_counter_evidence(&channel_id, &state2, &sig2),
+        Err(Ok(Error::ChannelNotOpen))
+    );
 }
 
 // ── Multiple channels ────────────────────────────────────────────────────────

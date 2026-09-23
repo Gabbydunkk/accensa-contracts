@@ -661,10 +661,10 @@
           "v0": {
             "topics": [
               {
-                "symbol": "prune_event"
+                "symbol": "receipt"
               },
               {
-                "u64": "2"
+                "symbol": "prune"
               },
               {
                 "u64": "1"
@@ -678,6 +678,38 @@
                   },
                   "val": {
                     "u64": "2"
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "schema_version"
+                  },
+                  "val": {
+                    "u32": 1
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "shard_id"
+                  },
+                  "val": {
+                    "u64": "2"
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "start_batch_id"
+                  },
+                  "val": {
+                    "u64": "1"
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "timestamp"
+                  },
+                  "val": {
+                    "u64": "0"
                   }
                 }
               ]

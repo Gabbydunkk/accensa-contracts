@@ -18,6 +18,41 @@ breaking changes bump the **minor** version, and they are called out as such.
 - **VDF Slashing Penalty**: Accurate assessment of slashing penalty calculations.
 - **Time Policy Transitions**: Supported Grace Period and Cooldown transitions.
 
+- **`receipt-anchor` (issue #394): multi-party Ed25519 signature
+  aggregation validator in `contracts/receipt-anchor/src/signatures.rs`.**
+  A multi-party receipt is authorized by several Ed25519 keys; instead of
+  one host `ed25519_verify` per participant it commits every participant to
+  one canonical message (contract-domain-separated via the sender-provided
+  domain bytes, length-prefixed payload, enumerated keys, and the exact
+  participation bitmap) and verifies the single aggregated signature first
+  with one host call — `Ok(false)`/`Err` rejects the whole set, and an
+  invalid signature traps. `validate_mask` enforces the 32-key cap and that
+  no set bit indexes a missing key; `verify_individual_signature` provides
+  a per-key audit path. Fully unit-tested in `signatures_test.rs`.
+- **`state-channel` (issue #387): dispute-window expiration safeguards.**
+  `dispute` now records the exact ledger (`disputed_at`) and transitions the
+  channel `Closed -> Disputed` instead of reopening it; `submit_counter_evidence`
+  lets anyone holding a newer sender-signed state fight the dispute while the
+  window is open (each accepted state re-arms the window); `finalize_dispute`
+  is callable by anyone once the window elapses and settles strictly per the
+  last verified state — receiver gets `balance`, sender is refunded
+  `amount - balance`. Timing helpers live in `contracts/state-channel/src/dispute.rs`.
+- **`common` (issue #396): checked financial math helpers in
+  `contracts/common/src/math.rs`.** `add_amounts`, `sub_amounts`,
+  `mul_amounts`, `div_amounts`, `checked_accumulate`, `mul_ratio`,
+  `apply_fee_bps`, checked `u64`<->`i128` conversions and checked
+  ledger-sequence arithmetic now return a `MathError` on overflow,
+  truncation, or a zero divisor instead of wrapping, saturating, or
+  trapping. `Error::MathOverflow` is added and wired through
+  `From<MathError>`.
+- **`receipt-shard` (issue #395): policy-driven storage eviction for
+  expired receipts.** `prune_expired_receipts` deletes batches whose
+  anchor is past `RETENTION_LEDGERS`, bounded by `max_count` per call,
+  and accrues a per-batch cleanup bounty to the caller, settled via
+  `claim_prune_bounty` (zeroed before transfer so a claim cannot pay
+  twice) with a `ReceiptsPrunedEvent` published on every call. The scan
+  is footprint-safe: it stops at the first gap past the last anchored
+  batch instead of iterating the full shard range.
 - **Distinct events for every `ReceiptAnchor` state change** (issue #89):
   `prune_batches` now actually emits the long-documented `PruneEvent` — it was
   defined in the code and pinned in `docs/EVENTS.md` but never published —
@@ -35,6 +70,21 @@ breaking changes bump the **minor** version, and they are called out as such.
   by a test asserting the exact topics and data map the host records
   (`contracts/receipt-anchor/src/test.rs`), with shapes documented in
   `docs/EVENTS.md` and the README event table.
+- **`refund-vault-factory` (issue #393): deterministic vault deployment with
+  an optional custom salt.** `create_vault` now accepts
+  `salt: Option<BytesN<32>>`; passing `Some` derives the deployment address
+  via `with_current_contract(salt)` so an identical salt always reproduces an
+  identical vault address, and reusing a salt whose derived address already
+  holds a deployed vault reverts with `SaltCollision`. The read-only
+  `compute_vault_address` entrypoint lets merchants precompute deployment
+  addresses off-chain. `deploy_vault` delegates with `None`, leaving the
+  existing counter-derived salt family unchanged.
+- **`governance` (issue #392): proposal quorum decays toward a safety floor
+  over the voting window.** The effective quorum now falls linearly from the
+  configured initial threshold to 3 500 bps as a proposal ages across its
+  voting window (`contracts/governance/src/quorum.rs`), so inactive proposals
+  late in their window need less "yes" weight to pass — but never beneath the
+  floor, and "yes" must still outweigh "no".
 ### Performance
 
 - **`refund-vault`: nonce-key allocation halved in `check_and_bump_user_nonce`

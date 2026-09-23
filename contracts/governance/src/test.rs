@@ -219,6 +219,62 @@ fn no_votes_can_outweigh_a_stale_quorum() {
 }
 
 #[test]
+fn quorum_decays_linearly_over_the_voting_window() {
+    let h = setup();
+    let (target, function, args) = set_value_call(&h.env, &h.target, 1);
+    let id = h.gov.propose(&h.m1, &target, &function, &args);
+
+    // m3 alone: weight 2 of 4 = 50%. Initial quorum is 60%, so at the
+    // window's start this cannot pass...
+    h.gov.vote(&h.m3, &id, &true);
+    assert_eq!(h.gov.try_execute(&id), Err(Ok(Error::QuorumNotMet)));
+
+    // ...but by the midpoint (elapsed 50 of 100) the effective quorum has
+    // decayed to 47.5%, which m3's 50% now clears.
+    h.env.ledger().with_mut(|l| l.sequence_number += 50);
+    h.gov.execute(&id);
+}
+
+#[test]
+fn quorum_at_midpoint_is_lower_than_initial_but_above_floor() {
+    let h = setup();
+    let (target, function, args) = set_value_call(&h.env, &h.target, 1);
+    let id = h.gov.propose(&h.m1, &target, &function, &args);
+
+    h.gov.vote(&h.m3, &id, &true);
+
+    // Halfway through a 100-ledger window the effective quorum must sit
+    // strictly between 60% and the 35% floor.
+    h.env.ledger().with_mut(|l| l.sequence_number += 50);
+    let proposal = h.gov.get_proposal(&id);
+    let voting_period = h.gov.get_voting_period();
+    let now = h.env.ledger().sequence();
+    let elapsed = now - proposal.deadline_ledger.saturating_sub(voting_period);
+
+    assert_eq!(elapsed, 50);
+    // 50% < 60% but >= floor, so it must execute once decayed to midpoint.
+    h.gov.execute(&id);
+}
+
+#[test]
+fn quorum_floor_still_requires_real_opposition_is_outweighed() {
+    let h = setup();
+    let (target, function, args) = set_value_call(&h.env, &h.target, 1);
+    let id = h.gov.propose(&h.m1, &target, &function, &args);
+
+    // m3 (2) yes; m1 + m2 (2) no — even at the decayed floor, yes == no,
+    // so the proposal must still be rejected.
+    h.gov.vote(&h.m3, &id, &true);
+    h.gov.vote(&h.m1, &id, &false);
+    h.gov.vote(&h.m2, &id, &false);
+
+    h.env.ledger().with_mut(|l| l.sequence_number += 100);
+
+    let res = h.gov.try_execute(&id);
+    assert_eq!(res, Err(Ok(Error::QuorumNotMet)));
+}
+
+#[test]
 fn voting_closes_after_deadline() {
     let h = setup();
     let (target, function, args) = set_value_call(&h.env, &h.target, 1);

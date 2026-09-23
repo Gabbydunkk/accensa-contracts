@@ -38,8 +38,9 @@
 #[cfg(test)]
 mod test;
 
-mod math;
-mod voting;
+mod quorum;
+
+use quorum::current_quorum_bps;
 
 use soroban_sdk::{
     contract, contracterror, contractevent, contractimpl, contractmeta, contracttype, Address, Env,
@@ -361,8 +362,22 @@ impl Governance {
             .instance()
             .get(&DataKey::ThresholdBps)
             .unwrap();
+        let voting_period: u32 = env
+            .storage()
+            .instance()
+            .get(&DataKey::VotingPeriod)
+            .unwrap();
+
+        // A proposal's window opened the ledger it was created on; the
+        // effective quorum decays linearly from the initial threshold toward
+        // the safety floor as that window elapses (see [`quorum`]).
+        let created_ledger = proposal.deadline_ledger.saturating_sub(voting_period);
+        let now = env.ledger().sequence();
+        let elapsed = now.saturating_sub(created_ledger);
+        let effective_bps = current_quorum_bps(threshold_bps, elapsed, voting_period);
+
         let quorum_met = (proposal.yes_weight as u128) * (MAX_THRESHOLD_BPS as u128)
-            >= (total_weight as u128) * (threshold_bps as u128);
+            >= (total_weight as u128) * (effective_bps as u128);
         if !quorum_met || proposal.yes_weight <= proposal.no_weight {
             return Err(Error::QuorumNotMet);
         }
