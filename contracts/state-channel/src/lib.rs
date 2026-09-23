@@ -23,6 +23,10 @@ pub enum ChannelPhase {
     Open,
     /// Sender has closed the channel; dispute window is active.
     Closed,
+    /// A dispute has been filed against the cooperative close; counter
+    /// evidence can still be submitted while the dispute window is open,
+    /// and `finalize_dispute` settles it once the window expires.
+    Disputed,
     /// Channel has been finalized (either after dispute window or by claim).
     Finalized,
 }
@@ -47,6 +51,8 @@ pub struct Channel {
     pub opened_at: u32,
     /// Ledger at which the channel was closed; `0` if still open.
     pub closed_at: u32,
+    /// Ledger at which a dispute was initiated; `0` if no dispute pending.
+    pub disputed_at: u32,
     /// Number of ledgers the dispute window remains open after `close_channel`.
     pub challenge_period: u32,
     /// Ed25519 public key used to verify off-chain state signatures.
@@ -114,6 +120,20 @@ pub struct DisputeEvent {
     pub channel_id: u64,
     pub nonce: u64,
     pub balance: i128,
+    /// Ledger at which the dispute was initiated; starts the dispute window.
+    pub disputed_at: u32,
+}
+
+/// Emitted when a dispute is finalized after the dispute window expires.
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DisputeFinalizedEvent {
+    #[topic]
+    pub channel_id: u64,
+    /// Amount paid to the receiver per the last verified state.
+    pub receiver_payout: i128,
+    /// Remainder of the escrow returned to the sender.
+    pub sender_refund: i128,
 }
 
 /// Emitted when the receiver claims funds after the dispute window expires.
@@ -210,6 +230,7 @@ impl StateChannel {
             phase: ChannelPhase::Open,
             opened_at: env.ledger().sequence(),
             closed_at: 0,
+            disputed_at: 0,
             challenge_period: effective_challenge,
             sender_pubkey,
         };
@@ -324,6 +345,12 @@ impl StateChannel {
     }
 
     /// Dispute a cooperative close by submitting a newer signed state.
+    ///
+    /// Must be filed within the challenge period of the close. On success the
+    /// channel transitions `Closed -> Disputed` and the dispute window is
+    /// re-armed from the current ledger; anyone may then submit
+    /// counter-evidence (a yet-newer signed state) while that window is open,
+    /// or call [`finalize_dispute`](Self::finalize_dispute) once it expires.
     pub fn dispute(
         env: Env,
         channel_id: u64,
@@ -336,10 +363,7 @@ impl StateChannel {
             return Err(Error::ChannelNotOpen);
         }
 
-        let current_ledger = env.ledger().sequence();
-        if current_ledger > channel.closed_at + channel.challenge_period {
-            return Err(Error::ChallengeExpired);
-        }
+        crate::dispute::ensure_window_open(&env, channel.closed_at, channel.challenge_period)?;
 
         Self::verify_state_signature(&env, &channel, &state, &signature)?;
 
@@ -353,8 +377,8 @@ impl StateChannel {
 
         channel.nonce = state.nonce;
         channel.balance = state.balance;
-        channel.phase = ChannelPhase::Open;
-        channel.closed_at = 0;
+        channel.phase = ChannelPhase::Disputed;
+        channel.disputed_at = env.ledger().sequence();
 
         env.storage()
             .instance()
@@ -364,6 +388,102 @@ impl StateChannel {
             channel_id,
             nonce: state.nonce,
             balance: state.balance,
+            disputed_at: channel.disputed_at,
+        }
+        .publish(&env);
+
+        Ok(())
+    }
+
+    /// Submit a newer signed state as counter-evidence during an active
+    /// dispute. Only valid while the dispute window is open; each accepted
+    /// state re-arms the window from the current ledger. The sender (or
+    /// anyone holding a sender-signed state) uses this to prove a newer
+    /// balance than the one the disputed close recorded.
+    pub fn submit_counter_evidence(
+        env: Env,
+        channel_id: u64,
+        state: StateUpdate,
+        signature: BytesN<64>,
+    ) -> Result<(), Error> {
+        let mut channel = Self::get_channel_internal(&env, channel_id)?;
+
+        if channel.phase != ChannelPhase::Disputed {
+            return Err(Error::ChannelNotOpen);
+        }
+
+        crate::dispute::ensure_window_open(&env, channel.disputed_at, channel.challenge_period)?;
+
+        Self::verify_state_signature(&env, &channel, &state, &signature)?;
+
+        if state.nonce <= channel.nonce {
+            return Err(Error::StaleState);
+        }
+
+        if state.balance < 0 || state.balance > channel.amount {
+            return Err(Error::ExceedsPayment);
+        }
+
+        channel.nonce = state.nonce;
+        channel.balance = state.balance;
+        channel.disputed_at = env.ledger().sequence();
+
+        env.storage()
+            .instance()
+            .set(&DataKey::Channel(channel_id), &channel);
+
+        StateUpdatedEvent {
+            channel_id,
+            nonce: state.nonce,
+            balance: state.balance,
+        }
+        .publish(&env);
+
+        Ok(())
+    }
+
+    /// Finalize a disputed channel once the dispute window has expired.
+    ///
+    /// Callable by anyone. Payouts follow the **last verified state** exactly:
+    /// the receiver gets `channel.balance` and the sender is refunded
+    /// `amount - balance`; nothing is minted or withheld.
+    pub fn finalize_dispute(env: Env, channel_id: u64) -> Result<(), Error> {
+        let mut channel = Self::get_channel_internal(&env, channel_id)?;
+
+        if channel.phase != ChannelPhase::Disputed {
+            return Err(Error::ChannelNotOpen);
+        }
+
+        crate::dispute::ensure_window_elapsed(&env, channel.disputed_at, channel.challenge_period)?;
+
+        let token: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Token)
+            .ok_or(Error::NotInitialized)?;
+
+        let receiver_payout = channel.balance;
+        let sender_refund = channel.amount - channel.balance;
+
+        let contract_addr = env.current_contract_address();
+        let tok = soroban_sdk::token::Client::new(&env, &token);
+        if receiver_payout > 0 {
+            tok.transfer(&contract_addr, &channel.receiver, &receiver_payout);
+        }
+        if sender_refund > 0 {
+            tok.transfer(&contract_addr, &channel.sender, &sender_refund);
+        }
+
+        channel.phase = ChannelPhase::Finalized;
+
+        env.storage()
+            .instance()
+            .set(&DataKey::Channel(channel_id), &channel);
+
+        DisputeFinalizedEvent {
+            channel_id,
+            receiver_payout,
+            sender_refund,
         }
         .publish(&env);
 
@@ -540,4 +660,5 @@ impl StateChannel {
         buf
     }
 }
+pub mod dispute;
 pub mod epoch;

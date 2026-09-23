@@ -14,6 +14,25 @@ breaking changes bump the **minor** version, and they are called out as such.
 - **VDF Slashing Penalty**: Accurate assessment of slashing penalty calculations.
 - **Time Policy Transitions**: Supported Grace Period and Cooldown transitions.
 
+- **`receipt-anchor` (issue #394): multi-party Ed25519 signature
+  aggregation validator in `contracts/receipt-anchor/src/signatures.rs`.**
+  A multi-party receipt is authorized by several Ed25519 keys; instead of
+  one host `ed25519_verify` per participant it commits every participant to
+  one canonical message (contract-domain-separated via the sender-provided
+  domain bytes, length-prefixed payload, enumerated keys, and the exact
+  participation bitmap) and verifies the single aggregated signature first
+  with one host call — `Ok(false)`/`Err` rejects the whole set, and an
+  invalid signature traps. `validate_mask` enforces the 32-key cap and that
+  no set bit indexes a missing key; `verify_individual_signature` provides
+  a per-key audit path. Fully unit-tested in `signatures_test.rs`.
+- **`state-channel` (issue #387): dispute-window expiration safeguards.**
+  `dispute` now records the exact ledger (`disputed_at`) and transitions the
+  channel `Closed -> Disputed` instead of reopening it; `submit_counter_evidence`
+  lets anyone holding a newer sender-signed state fight the dispute while the
+  window is open (each accepted state re-arms the window); `finalize_dispute`
+  is callable by anyone once the window elapses and settles strictly per the
+  last verified state — receiver gets `balance`, sender is refunded
+  `amount - balance`. Timing helpers live in `contracts/state-channel/src/dispute.rs`.
 - **`common` (issue #396): checked financial math helpers in
   `contracts/common/src/math.rs`.** `add_amounts`, `sub_amounts`,
   `mul_amounts`, `div_amounts`, `checked_accumulate`, `mul_ratio`,

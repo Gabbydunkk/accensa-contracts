@@ -319,6 +319,14 @@
                           },
                           {
                             "key": {
+                              "symbol": "disputed_at"
+                            },
+                            "val": {
+                              "u32": 0
+                            }
+                          },
+                          {
+                            "key": {
                               "symbol": "nonce"
                             },
                             "val": {
