@@ -14,6 +14,22 @@ breaking changes bump the **minor** version, and they are called out as such.
 - **VDF Slashing Penalty**: Accurate assessment of slashing penalty calculations.
 - **Time Policy Transitions**: Supported Grace Period and Cooldown transitions.
 
+- **`common` (issue #396): checked financial math helpers in
+  `contracts/common/src/math.rs`.** `add_amounts`, `sub_amounts`,
+  `mul_amounts`, `div_amounts`, `checked_accumulate`, `mul_ratio`,
+  `apply_fee_bps`, checked `u64`<->`i128` conversions and checked
+  ledger-sequence arithmetic now return a `MathError` on overflow,
+  truncation, or a zero divisor instead of wrapping, saturating, or
+  trapping. `Error::MathOverflow` is added and wired through
+  `From<MathError>`.
+- **`receipt-shard` (issue #395): policy-driven storage eviction for
+  expired receipts.** `prune_expired_receipts` deletes batches whose
+  anchor is past `RETENTION_LEDGERS`, bounded by `max_count` per call,
+  and accrues a per-batch cleanup bounty to the caller, settled via
+  `claim_prune_bounty` (zeroed before transfer so a claim cannot pay
+  twice) with a `ReceiptsPrunedEvent` published on every call. The scan
+  is footprint-safe: it stops at the first gap past the last anchored
+  batch instead of iterating the full shard range.
 - **Distinct events for every `ReceiptAnchor` state change** (issue #89):
   `prune_batches` now actually emits the long-documented `PruneEvent` — it was
   defined in the code and pinned in `docs/EVENTS.md` but never published —
