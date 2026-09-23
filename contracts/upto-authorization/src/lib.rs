@@ -366,3 +366,4 @@ impl UptoAuthorization {
 }
 
 mod test;
+mod fuzz_test;
