@@ -1,1 +1,1 @@
-pub mod blacklist { pub fn check() {} }
+pub fn check() {}

@@ -1,1 +1,1 @@
-pub mod audit { pub fn emit_admin_action() {} }
+pub fn emit_admin_action() {}

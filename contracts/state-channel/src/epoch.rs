@@ -1,1 +1,1 @@
-pub mod epoch { pub struct ChannelEpoch {} }
+pub struct ChannelEpoch {}
