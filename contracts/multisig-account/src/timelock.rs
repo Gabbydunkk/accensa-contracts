@@ -3,6 +3,14 @@ use soroban_sdk::{Address, Env, Vec};
 use crate::Error;
 use crate::DataKey;
 
+//! Timelock delay queue for sensitive admin actions in the multisig account.
+//!
+//! High-risk operations (signer set updates, threshold decreases, code
+//! upgrades) are queued with a mandatory delay (48 hours in ledger
+//! sequence increments). Authorized signers or a guardian can cancel
+//! malicious or erroneous queued actions during the delay window.
+//! Execution is enforced after the timelock elapses and rejected before.
+
 /// A queued transaction awaiting timelock execution.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -22,11 +30,11 @@ pub struct QueuedTransaction {
 /// Default timelock delay in ledger sequences (48 hours at ~5s/ledger ≈ 345600 ledgers).
 pub const DEFAULT_TIMELOCK_DELAY: u32 = 345600;
 
-/// Queue a high-risk transaction for delayed execution.
-///
-/// The transaction enters a queued state and cannot be executed
-/// until `execution_ledger` is reached. The `guardian` can cancel
-/// the transaction during the delay window.
+//! Queue a high-risk transaction for delayed execution.
+//!
+//! The transaction enters a queued state and cannot be executed
+//! until `execution_ledger` is reached. The `guardian` can cancel
+//! the transaction during the delay window.
 pub fn queue_transaction(
     env: &Env,
     call_hash: [u8; 32],
@@ -56,11 +64,11 @@ pub fn queue_transaction(
     queue_id
 }
 
-/// Execute a queued transaction after the timelock has elapsed.
-///
-/// Returns `Ok(())` if the transaction was executed.
-/// Returns `Err(Error::TimelockNotExpired)` if the timelock has not yet elapsed.
-/// Returns `Err(Error::ProposalNotFound)` if the queue ID does not exist.
+//! Execute a queued transaction after the timelock has elapsed.
+//!
+//! Returns `Ok(())` if the transaction was executed.
+//! Returns `Err(Error::TimelockNotExpired)` if the timelock has not yet elapsed.
+//! Returns `Err(Error::ProposalNotFound)` if the queue ID does not exist.
 pub fn execute_queued_transaction(env: &Env, queue_id: u64) -> Result<(), Error> {
     let key = DataKey::QueuedTransaction(queue_id);
     let tuple: ( [u8; 32], u32, u32, u32, Address ) = env
@@ -82,10 +90,10 @@ pub fn execute_queued_transaction(env: &Env, queue_id: u64) -> Result<(), Error>
     Ok(())
 }
 
-/// Cancel a queued transaction during the delay window.
-///
-/// Only the guardian or a registered signer can cancel.
-/// Returns `Err(Error::TimelockNotExpired)` if the timelock has already elapsed.
+//! Cancel a queued transaction during the delay window.
+//!
+//! Only the guardian or a registered signer can cancel.
+//! Returns `Err(Error::TimelockNotExpired)` if the timelock has already elapsed.
 pub fn cancel_queued_transaction(
     env: &Env,
     queue_id: u64,
@@ -118,10 +126,10 @@ pub fn cancel_queued_transaction(
     Ok(())
 }
 
-/// Approve a queued transaction. Each authorized signer can approve once.
-///
-/// Returns `Ok(())` if the approval was recorded.
-/// Returns `Err(Error::AlreadyVoted)` if the signer has already approved.
+//! Approve a queued transaction. Each authorized signer can approve once.
+//!
+//! Returns `Ok(())` if the approval was recorded.
+//! Returns `Err(Error::AlreadyVoted)` if the signer has already approved.
 pub fn approve_queued_transaction(
     env: &Env,
     queue_id: u64,
@@ -166,7 +174,7 @@ pub fn get_queued_transaction(env: &Env, queue_id: u64) -> Result<QueuedTransact
 #[cfg(test)]
 mod tests {
     use super::*;
-    use soroban_sdk::{Env, testutils::Ledger};
+    use soroban_sdk::Env;
 
     #[test]
     fn test_queue_and_execute() {

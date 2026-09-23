@@ -1,9 +1,16 @@
-use soroban_sdk{
-    Address, Env, Vec, contractevent, topic,
-};
+use soroban_sdk::{Address, Env, Vec, contractevent, topic};
 
 use crate::Error;
 use crate::DataKey;
+
+//! Dynamic threshold rotation for multisig-account signers.
+//!
+//! Supports atomic multi-signer threshold reconfiguration in a single call
+//! to avoid intermediate insecure states when replacing signers.
+//!
+//! Validates invariant: 1 <= new_threshold <= total_active_signers.
+//! Prevents duplicate public keys and zeroed addresses.
+//! Emits SignersRotated audit event.
 
 /// Rotate signers and threshold atomically in a single call.
 

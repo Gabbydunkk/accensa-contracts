@@ -4,8 +4,6 @@
 //! point operations, ensuring precision for token balances with 7 decimal
 //! places (Stellar native standard).
 
-#![no_std]
-
 /// Compute the integer square root of `n` using Newton-Raphson iteration.
 ///
 /// Returns `floor(sqrt(n))`. Handles overflow protection for `u64` inputs.
