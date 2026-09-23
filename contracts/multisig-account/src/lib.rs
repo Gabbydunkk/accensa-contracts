@@ -20,6 +20,8 @@
 
 #![no_std]
 
+mod signers;
+
 // The helpers are only needed by tests; gate them so the contract itself stays
 // minimal. Unit tests within this crate (`#[cfg(test)]`) and downstream
 // integration tests (which enable the `testutils` feature through their
@@ -39,6 +41,10 @@ pub enum Error {
     UnknownSigner = 1,
     /// Fewer than `threshold` distinct signers authorized the call.
     InsufficientSignatures = 2,
+    /// The caller is not authorized to perform this action.
+    Unauthorized = 3,
+    /// The timelock period has not yet elapsed.
+    TimelockNotExpired = 4,
 }
 
 #[contracttype]
@@ -47,6 +53,8 @@ pub enum DataKey {
     Threshold,
     /// Persistent storage per registered signer: marks it as authorized.
     Signer(Address),
+    /// Temporary storage per approval: marks a signer has approved a queued transaction.
+    TimelockApproval(u64, Address),
 }
 
 /// A threshold account enforcing that `threshold` distinct registered signers
@@ -87,6 +95,27 @@ impl MultisigAccount {
     /// True if `signer` is registered on this account.
     pub fn is_signer(env: Env, signer: Address) -> bool {
         env.storage().persistent().has(&DataKey::Signer(signer))
+    }
+
+    /// Rotate signers and threshold atomically in a single call.
+    ///
+    /// # Parameters
+    /// - `to_add`: new signers to add (must not already be signers, must not be zero address)
+    /// - `to_remove`: signers to remove (must be existing signers)
+    /// - `new_threshold`: new threshold (must satisfy 1 <= threshold <= total_active_signers)
+    ///
+    /// # Returns
+    /// `Ok(())` on success, or `Err` if validation fails.
+    ///
+    /// # Events emitted on success
+    /// - [`SignersRotated`](crate::signers::SignersRotated)
+    pub fn rotate_signers_and_threshold(
+        env: Env,
+        to_add: Vec<Address>,
+        to_remove: Vec<Address>,
+        new_threshold: u32,
+    ) -> Result<(), Error> {
+        signers::rotate_signers_and_threshold(&env, to_add, to_remove, new_threshold)
     }
 }
 
