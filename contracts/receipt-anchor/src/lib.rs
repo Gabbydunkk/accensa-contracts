@@ -1,5 +1,6 @@
 #![no_std]
 
+pub mod events;
 pub mod signatures;
 pub mod zk_verifier;
 
@@ -54,6 +55,8 @@ pub enum DataKey {
     /// shard's contract address. Keyed by `(logical shard_id, storage index)`
     /// so logical shards isolate their storage shards from one another.
     Shard(u64, u64),
+    /// Proposed admin address pending acceptance via `accept_admin` (issue #288).
+    PendingAdmin,
 }
 
 /// Admin-configurable token-bucket rate limit applied to `anchor_batch`.
@@ -411,13 +414,7 @@ impl ReceiptAnchor {
             .instance()
             .get(&DataKey::ShardBatchCount(shard_id))
             .unwrap_or(0);
-        if batch_count > 0 {
-            if let Ok(last_batch) = Self::get_batch(env.clone(), shard_id, batch_count) {
-                if last_batch.root == root {
-                    return Err(Error::DuplicateRoot);
-                }
-            }
-        }
+        Self::check_no_duplicate_root(env, shard_id, batch_count, &root)?;
         let batch_id = batch_count + 1;
         let shard_index = (batch_id - 1) / SHARD_CAPACITY;
         let shard_addr = Self::get_or_create_shard(env, shard_id, shard_index)?;
@@ -443,6 +440,50 @@ impl ReceiptAnchor {
         }
 
         // Push root into this shard's ring buffer, evicting the oldest if full.
+        Self::push_shard_root(env, shard_id, &root);
+
+        env.storage()
+            .instance()
+            .extend_ttl(TTL_THRESHOLD, TTL_EXTEND);
+
+        events::publish(
+            env,
+            events::ReceiptAction::Anchor,
+            batch_id,
+            events::AnchorPayload {
+                schema_version: events::SCHEMA_VERSION,
+                timestamp: env.ledger().timestamp(),
+                root,
+                shard_id,
+                count,
+                period_start,
+                period_end,
+                anchored_ledger,
+            },
+        );
+
+        Ok(batch_id)
+    }
+
+    /// Guard against anchoring the same root twice in a row for this shard.
+    fn check_no_duplicate_root(
+        env: &Env,
+        shard_id: u64,
+        batch_count: u64,
+        root: &BytesN<32>,
+    ) -> Result<(), Error> {
+        if batch_count > 0 {
+            if let Ok(last_batch) = Self::get_batch(env.clone(), shard_id, batch_count) {
+                if last_batch.root == *root {
+                    return Err(Error::DuplicateRoot);
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Append `root` to this shard's ring buffer, evicting the oldest when full.
+    fn push_shard_root(env: &Env, shard_id: u64, root: &BytesN<32>) {
         let mut buffer: Vec<BytesN<32>> = env
             .storage()
             .instance()
@@ -455,23 +496,6 @@ impl ReceiptAnchor {
         env.storage()
             .instance()
             .set(&DataKey::ShardRootBuffer(shard_id), &buffer);
-
-        env.storage()
-            .instance()
-            .extend_ttl(TTL_THRESHOLD, TTL_EXTEND);
-
-        AnchorEvent {
-            shard_id,
-            batch_id,
-            root,
-            count,
-            period_start,
-            period_end,
-            anchored_ledger,
-        }
-        .publish(env);
-
-        Ok(batch_id)
     }
 
     /// Verifies a Groth16 zero-knowledge proof against public inputs and a verifying key.
@@ -845,6 +869,43 @@ impl ReceiptAnchor {
             .ok_or(Error::NotInitialized)
     }
 
+    /// Proposes a two-step transfer of the admin role to `proposed` (issue #288).
+    /// The transfer is not effective until `proposed` calls `accept_admin`.
+    pub fn transfer_admin(env: Env, proposed: Address) -> Result<(), Error> {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .ok_or(Error::NotInitialized)?;
+        admin.require_auth();
+        env.storage()
+            .instance()
+            .set(&DataKey::PendingAdmin, &proposed);
+        Ok(())
+    }
+
+    /// Completes the pending admin transfer. Must be called by the address
+    /// that was passed to `transfer_admin`; clears the pending entry on success.
+    pub fn accept_admin(env: Env) -> Result<(), Error> {
+        let proposed: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::PendingAdmin)
+            .ok_or(Error::NoPendingTransfer)?;
+        proposed.require_auth();
+        env.storage().instance().set(&DataKey::Admin, &proposed);
+        env.storage().instance().remove(&DataKey::PendingAdmin);
+        Ok(())
+    }
+
+    /// Returns the proposed admin address, or `NoPendingTransfer` if none.
+    pub fn get_pending_admin(env: Env) -> Result<Address, Error> {
+        env.storage()
+            .instance()
+            .get(&DataKey::PendingAdmin)
+            .ok_or(Error::NoPendingTransfer)
+    }
+
     /// Returns `NotInitialized` unless the contract has been initialized
     /// (i.e. an admin is set). Per-shard state is lazily created, so a shard's
     /// absent keys must not be mistaken for an uninitialized contract.
@@ -937,12 +998,18 @@ impl ReceiptAnchor {
         // batch ids are exactly `[start_batch_id, cursor)`, so the event
         // brackets the range inclusive on both ends.
         if cursor > start_batch_id {
-            PruneEvent {
-                shard_id,
+            events::publish(
+                &env,
+                events::ReceiptAction::Prune,
                 start_batch_id,
-                end_batch_id: cursor - 1,
-            }
-            .publish(&env);
+                events::PrunePayload {
+                    schema_version: events::SCHEMA_VERSION,
+                    timestamp: env.ledger().timestamp(),
+                    shard_id,
+                    start_batch_id,
+                    end_batch_id: cursor - 1,
+                },
+            );
         }
 
         Ok(cursor)
