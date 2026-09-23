@@ -329,6 +329,19 @@ jobs:
             exit 1
           fi
 
+      - name: Install stellar-cli for WASM budget inspection
+        run: |
+          if command -v stellar &>/dev/null; then
+            echo "stellar-cli already installed"
+          else
+            cargo install --locked stellar-cli 2>/dev/null || echo "stellar-cli install skipped"
+          fi
+
+      - name: Run WASM budget check script
+        run: |
+          chmod +x scripts/check_wasm_budget.sh
+          ./scripts/check_wasm_budget.sh
+
       - name: Upload WASM Artifacts
         uses: actions/upload-artifact@v7
         with:
