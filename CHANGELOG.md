@@ -66,6 +66,21 @@ breaking changes bump the **minor** version, and they are called out as such.
   by a test asserting the exact topics and data map the host records
   (`contracts/receipt-anchor/src/test.rs`), with shapes documented in
   `docs/EVENTS.md` and the README event table.
+- **`refund-vault-factory` (issue #393): deterministic vault deployment with
+  an optional custom salt.** `create_vault` now accepts
+  `salt: Option<BytesN<32>>`; passing `Some` derives the deployment address
+  via `with_current_contract(salt)` so an identical salt always reproduces an
+  identical vault address, and reusing a salt whose derived address already
+  holds a deployed vault reverts with `SaltCollision`. The read-only
+  `compute_vault_address` entrypoint lets merchants precompute deployment
+  addresses off-chain. `deploy_vault` delegates with `None`, leaving the
+  existing counter-derived salt family unchanged.
+- **`governance` (issue #392): proposal quorum decays toward a safety floor
+  over the voting window.** The effective quorum now falls linearly from the
+  configured initial threshold to 3 500 bps as a proposal ages across its
+  voting window (`contracts/governance/src/quorum.rs`), so inactive proposals
+  late in their window need less "yes" weight to pass — but never beneath the
+  floor, and "yes" must still outweigh "no".
 ### Performance
 
 - **`refund-vault`: nonce-key allocation halved in `check_and_bump_user_nonce`
