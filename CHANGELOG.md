@@ -29,6 +29,11 @@ breaking changes bump the **minor** version, and they are called out as such.
   `docs/EVENTS.md` and the README event table.
 ### Performance
 
+- **`refund-vault`: nonce-key allocation halved in `check_and_bump_user_nonce`
+  (issue #295).** `DataKey::UserNonce(caller.clone())` is now constructed once
+  and reused for both the storage `get` and `set`, eliminating one
+  `Address::clone` per `refund`, `claim_batch`, and `process_batch` call.
+
 - **`refund-vault`: policy-level state reads are now cached once per entry
   point (issue #86).** `claim_single` no longer re-reads the six policy keys
   (`RefundWindow`, `RefundDeadline`, `OraclePolicy`, `VdfDelay`, `Token`,
@@ -36,6 +41,24 @@ breaking changes bump the **minor** version, and they are called out as such.
   builds a policy cache up front and `refund`, `claim_batch` and
   `process_batch` share it, removing `6×(N−1)` redundant instance reads for a
   batch of `N` claims (594 fewer reads for `process_batch` at `N=100`).
+
+### Changed
+
+- **`receipt-anchor`: extracted `push_shard_root` and `check_no_duplicate_root`
+  helpers from `anchor_batch_internal` (issue #292).** The ring-buffer update
+  and per-shard duplicate-root guard are now private methods, shortening the
+  main anchoring path and making each responsibility independently readable.
+
+- **`receipt-anchor`: added `build_proof` test helper (issue #291).** The
+  inline proof-assembly loop in `test_shared_vectors_match_typescript_sdk` is
+  now a reusable `build_proof(env, siblings)` function. The static `vectors.rs`
+  data (zero-heap `&'static [[u8; 32]]` slices) is already optimal and required
+  no change.
+
+- **`refund-vault`: extracted event-data map helpers in `test.rs` (issue #296).**
+  `deposit_event_data`, `refund_event_data`, and `withdraw_event_data` in the
+  `event_helpers` module replace inline `Map::<Val, Val>` construction in
+  `test_events_emitted`, removing the repeated field-set boilerplate.
 
 ### Fixed
 
