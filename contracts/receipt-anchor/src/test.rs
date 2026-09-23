@@ -34,6 +34,14 @@ fn init(env: &Env, client: &ReceiptAnchorClient, merchant: &Address) {
     client.initialize(merchant, &shard_wasm_hash(env));
 }
 
+fn build_proof(env: &Env, siblings: &[[u8; 32]]) -> soroban_sdk::Vec<BytesN<32>> {
+    let mut proof = soroban_sdk::Vec::new(env);
+    for sibling in siblings {
+        proof.push_back(BytesN::from_array(env, sibling));
+    }
+    proof
+}
+
 fn hash_pair(env: &Env, a: &BytesN<32>, b: &BytesN<32>) -> BytesN<32> {
     let (lo, hi) = if a.to_array() <= b.to_array() {
         (a.to_array(), b.to_array())
@@ -585,10 +593,7 @@ fn test_shared_vectors_match_typescript_sdk() {
         let root = BytesN::from_array(&env, &v.root);
         let leaf = BytesN::from_array(&env, &v.leaf);
 
-        let mut proof = vec![&env];
-        for sibling in v.proof {
-            proof.push_back(BytesN::from_array(&env, sibling));
-        }
+        let proof = build_proof(&env, v.proof);
 
         let batch_id = client
             .try_anchor_batch(&DEFAULT_SHARD, &root, &(v.proof.len() as u32), &0, &100)

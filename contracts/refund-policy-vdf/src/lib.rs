@@ -68,3 +68,5 @@ impl RefundPolicy for VdfPolicy {
         verify_vdf(&env, &challenge, p.delay, &output, &witness)
     }
 }
+mod slashing;
+pub use slashing::*;

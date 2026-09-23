@@ -559,13 +559,12 @@ fn current_user_nonce(env: &Env, caller: &Address) -> u64 {
 /// one — reverts with `Error::StaleState`, mirroring the state-channel's
 /// nonce-replay semantics.
 fn check_and_bump_user_nonce(env: &Env, caller: &Address, provided: u64) -> Result<(), Error> {
-    let expected = current_user_nonce(env, caller);
+    let key = DataKey::UserNonce(caller.clone());
+    let expected: u64 = env.storage().persistent().get(&key).unwrap_or(0);
     if provided != expected {
         return Err(Error::StaleState);
     }
-    env.storage()
-        .persistent()
-        .set(&DataKey::UserNonce(caller.clone()), &(expected + 1));
+    env.storage().persistent().set(&key, &(expected + 1));
     Ok(())
 }
 
@@ -2623,3 +2622,5 @@ mod commit_reveal_tests;
 // free of the prebuilt-WASM requirement and the `budget_macros` dev-dependency.
 #[cfg(all(test, feature = "budget-assert"))]
 mod budget_test;
+mod dual_asset;
+pub use dual_asset::*;
