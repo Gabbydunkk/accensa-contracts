@@ -85,10 +85,28 @@ impl RefundVaultFactory {
         init(&env, admin, vault_wasm_hash, time_policy, vdf_policy)
     }
 
-    /// Deploys a vault instance configured by `init`. Requires the merchant's
-    /// authorization (griefing cannot be engineered on someone else's salt
-    /// family). Returns the new vault's address deterministically.
+    /// Deploys a vault instance configured by `init` on the factory's
+    /// counter-derived salt family. Requires the merchant's authorization
+    /// (griefing cannot be engineered on someone else's salt family). Returns
+    /// the new vault's address deterministically.
     pub fn deploy_vault(env: Env, init: VaultInit) -> Result<Address, Error> {
+        Self::create_vault(env, init, None)
+    }
+
+    /// Deploys a vault instance configured by `init`, optionally on a
+    /// merchant-supplied 32-byte salt. Requires the merchant's authorization.
+    ///
+    /// With `None` the factory falls back to its counter-derived salt family
+    /// (the `deploy_vault` behavior). With `Some(salt)` the deployment
+    /// address is derived deterministically as
+    /// [`DeployerWithCurrentContract::deployed_address`] of `salt`, so an
+    /// identical salt always reproduces an identical vault address; reusing an
+    /// already-deployed salt reverts with [`Error::SaltCollision`].
+    pub fn create_vault(
+        env: Env,
+        init: VaultInit,
+        salt: Option<BytesN<32>>,
+    ) -> Result<Address, Error> {
         require_initialized(&env)?;
         init.merchant.require_auth();
 
@@ -101,7 +119,19 @@ impl RefundVaultFactory {
             .clone()
             .or_else(|| env.storage().persistent().get(&KEY_VDF));
 
-        let salt = next_salt(&env, &init.merchant);
+        let salt = match salt {
+            Some(salt) => {
+                let derived = env
+                    .deployer()
+                    .with_current_contract(salt.clone())
+                    .deployed_address();
+                if is_tracked_vault(&env, &derived) {
+                    return Err(Error::SaltCollision);
+                }
+                salt
+            }
+            None => next_salt(&env, &init.merchant),
+        };
         let wasm_hash: BytesN<32> = env
             .storage()
             .persistent()
@@ -201,6 +231,19 @@ impl RefundVaultFactory {
             .get::<_, u128>(&KEY_NEXT_SALT)
             .unwrap_or(0)
     }
+
+    /// Read-only: the deterministic address a vault deployed with `salt` will
+    /// land on (`create_vault` with `Some(salt)`), before actually deploying.
+    ///
+    /// Because deployment addresses are a pure function of the factory's own
+    /// address and the salt, an identical salt always reproduces an identical
+    /// derived address — merchants can use this to mint vanity/expected vault
+    /// addresses off-chain.
+    pub fn compute_vault_address(env: Env, salt: BytesN<32>) -> Address {
+        env.deployer()
+            .with_current_contract(salt)
+            .deployed_address()
+    }
 }
 
 fn init(
@@ -255,4 +298,15 @@ fn next_salt(env: &Env, merchant: &Address) -> BytesN<32> {
         .persistent()
         .set(&KEY_NEXT_SALT, &(counter + 1));
     salt
+}
+
+/// Whether a vault was already deployed at `address` by this factory. Used to
+/// reject merchant-supplied salts whose derived address aliases an existing
+/// vault (the `SaltCollision` guard).
+fn is_tracked_vault(env: &Env, address: &Address) -> bool {
+    env.storage()
+        .persistent()
+        .get::<_, Vec<Address>>(&KEY_VAULTS)
+        .map(|vaults| vaults.contains(address))
+        .unwrap_or(false)
 }
