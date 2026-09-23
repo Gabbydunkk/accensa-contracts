@@ -9,6 +9,10 @@ breaking changes bump the **minor** version, and they are called out as such.
 ## [Unreleased]
 
 ### Added
+- **Dual-Asset Support**: Added support for native XLM and SEP-41 tokens in RefundVault.
+- **Upto-Authorization Fuzzing**: Added extensive fuzz testing limits.
+- **VDF Slashing Penalty**: Accurate assessment of slashing penalty calculations.
+- **Time Policy Transitions**: Supported Grace Period and Cooldown transitions.
 
 - **Distinct events for every `ReceiptAnchor` state change** (issue #89):
   `prune_batches` now actually emits the long-documented `PruneEvent` — it was
