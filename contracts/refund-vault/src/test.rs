@@ -8,6 +8,62 @@ use soroban_sdk::{
 
 const FLOAT: i128 = 1_000_000;
 
+#[cfg(test)]
+mod event_helpers {
+    use soroban_sdk::{Env, IntoVal, Map, Symbol, Val};
+
+    pub fn deposit_event_data(env: &Env, amount: i128, nonce: u64) -> Map<Val, Val> {
+        let mut m = Map::new(env);
+        m.set(
+            Symbol::new(env, "amount").into_val(env),
+            amount.into_val(env),
+        );
+        m.set(Symbol::new(env, "nonce").into_val(env), nonce.into_val(env));
+        m
+    }
+
+    pub fn refund_event_data(
+        env: &Env,
+        amount: i128,
+        fee: i128,
+        cumulative_refunded: i128,
+        recipient: &soroban_sdk::Address,
+        ledger: u32,
+        nonce: u64,
+    ) -> Map<Val, Val> {
+        let mut m = Map::new(env);
+        m.set(
+            Symbol::new(env, "amount").into_val(env),
+            amount.into_val(env),
+        );
+        m.set(Symbol::new(env, "fee").into_val(env), fee.into_val(env));
+        m.set(
+            Symbol::new(env, "cumulative_refunded").into_val(env),
+            cumulative_refunded.into_val(env),
+        );
+        m.set(
+            Symbol::new(env, "recipient").into_val(env),
+            recipient.clone().into_val(env),
+        );
+        m.set(
+            Symbol::new(env, "ledger").into_val(env),
+            ledger.into_val(env),
+        );
+        m.set(Symbol::new(env, "nonce").into_val(env), nonce.into_val(env));
+        m
+    }
+
+    pub fn withdraw_event_data(env: &Env, amount: i128, nonce: u64) -> Map<Val, Val> {
+        let mut m = Map::new(env);
+        m.set(
+            Symbol::new(env, "amount").into_val(env),
+            amount.into_val(env),
+        );
+        m.set(Symbol::new(env, "nonce").into_val(env), nonce.into_val(env));
+        m
+    }
+}
+
 fn setup(window: u32) -> (Env, RefundVaultClient<'static>, Address, Address) {
     let env = Env::default();
     env.mock_all_auths();
@@ -618,21 +674,13 @@ fn test_extend_refund_ttl_succeeds() {
 
 #[test]
 fn test_events_emitted() {
+    use event_helpers::{deposit_event_data, refund_event_data, withdraw_event_data};
     use soroban_sdk::testutils::Events;
-    use soroban_sdk::{vec, IntoVal, Map, Symbol, Val};
+    use soroban_sdk::{vec, IntoVal, Symbol};
     let (env, client, merchant, _token) = setup(100);
 
     client.deposit(&merchant, &500_000);
 
-    let mut deposit_data = Map::<Val, Val>::new(&env);
-    deposit_data.set(
-        Symbol::new(&env, "amount").into_val(&env),
-        500_000i128.into_val(&env),
-    );
-    deposit_data.set(
-        Symbol::new(&env, "nonce").into_val(&env),
-        0u64.into_val(&env),
-    );
     assert_eq!(
         env.events().all().filter_by_contract(&client.address),
         vec![
@@ -640,7 +688,7 @@ fn test_events_emitted() {
             (
                 client.address.clone(),
                 (Symbol::new(&env, "deposit_event"), merchant.clone()).into_val(&env),
-                deposit_data.into_val(&env)
+                deposit_event_data(&env, 500_000, 0).into_val(&env)
             )
         ]
     );
@@ -650,57 +698,31 @@ fn test_events_emitted() {
 
     client.refund(&payment_ref, &buyer, &120_000, &0, &120_000, &None, &0);
 
-    let refund_events = env.events().all().filter_by_contract(&client.address);
     // The refund event carries the per-call amount and the running cumulative
     // total, so an indexer knows the state without summing history (#99).
-    let mut refund_data = Map::<Val, Val>::new(&env);
-    refund_data.set(
-        Symbol::new(&env, "amount").into_val(&env),
-        120_000i128.into_val(&env),
-    );
-    refund_data.set(
-        Symbol::new(&env, "fee").into_val(&env),
-        0i128.into_val(&env),
-    );
-    refund_data.set(
-        Symbol::new(&env, "cumulative_refunded").into_val(&env),
-        120_000i128.into_val(&env),
-    );
-    refund_data.set(
-        Symbol::new(&env, "recipient").into_val(&env),
-        buyer.clone().into_val(&env),
-    );
-    refund_data.set(
-        Symbol::new(&env, "ledger").into_val(&env),
-        env.ledger().sequence().into_val(&env),
-    );
-    refund_data.set(
-        Symbol::new(&env, "nonce").into_val(&env),
-        1u64.into_val(&env),
-    );
     assert_eq!(
-        refund_events,
+        env.events().all().filter_by_contract(&client.address),
         vec![
             &env,
             (
                 client.address.clone(),
                 (Symbol::new(&env, "refund_event"), payment_ref.clone()).into_val(&env),
-                refund_data.into_val(&env)
+                refund_event_data(
+                    &env,
+                    120_000,
+                    0,
+                    120_000,
+                    &buyer,
+                    env.ledger().sequence(),
+                    1
+                )
+                .into_val(&env)
             )
         ]
     );
 
     client.withdraw(&100_000, &merchant);
 
-    let mut withdraw_data = Map::<Val, Val>::new(&env);
-    withdraw_data.set(
-        Symbol::new(&env, "amount").into_val(&env),
-        100_000i128.into_val(&env),
-    );
-    withdraw_data.set(
-        Symbol::new(&env, "nonce").into_val(&env),
-        2u64.into_val(&env),
-    );
     assert_eq!(
         env.events().all().filter_by_contract(&client.address),
         vec![
@@ -708,7 +730,7 @@ fn test_events_emitted() {
             (
                 client.address.clone(),
                 (Symbol::new(&env, "withdraw_event"), merchant.clone()).into_val(&env),
-                withdraw_data.into_val(&env)
+                withdraw_event_data(&env, 100_000, 2).into_val(&env)
             )
         ]
     );
