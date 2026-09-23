@@ -116,7 +116,7 @@ pub fn cancel_queued_transaction(
         .storage()
         .persistent()
         .get(&DataKey::TimelockGuardian)
-        .unwrap_or(Address::from_str(env, "X:"));
+        .ok_or(Error::Unauthorized)?;
 
     if *caller != stored_guardian {
         return Err(Error::Unauthorized);

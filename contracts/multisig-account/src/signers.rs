@@ -52,9 +52,18 @@ pub fn rotate_signers_and_threshold(
         }
     }
 
-    // Note: Zero address validation is intentionally omitted from this
-    // implementation. Callers should ensure to_add and to_remove contain
-    // valid non-zero addresses.
+    // Zero address validation: Soroban zero address is "X:" (all zeros).
+    // Validate that to_add and to_remove don't contain zero addresses.
+    for addr in &to_add {
+        if addr.to_string() == "X:" {
+            return Err(Error::InsufficientSignatures);
+        }
+    }
+    for addr in &to_remove {
+        if addr.to_string() == "X:" {
+            return Err(Error::InsufficientSignatures);
+        }
+    }
 
     // Remove signers to remove from persistent storage
     for addr in &to_remove {
