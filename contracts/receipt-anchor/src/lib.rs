@@ -410,13 +410,7 @@ impl ReceiptAnchor {
             .instance()
             .get(&DataKey::ShardBatchCount(shard_id))
             .unwrap_or(0);
-        if batch_count > 0 {
-            if let Ok(last_batch) = Self::get_batch(env.clone(), shard_id, batch_count) {
-                if last_batch.root == root {
-                    return Err(Error::DuplicateRoot);
-                }
-            }
-        }
+        Self::check_no_duplicate_root(env, shard_id, batch_count, &root)?;
         let batch_id = batch_count + 1;
         let shard_index = (batch_id - 1) / SHARD_CAPACITY;
         let shard_addr = Self::get_or_create_shard(env, shard_id, shard_index)?;
@@ -442,18 +436,7 @@ impl ReceiptAnchor {
         }
 
         // Push root into this shard's ring buffer, evicting the oldest if full.
-        let mut buffer: Vec<BytesN<32>> = env
-            .storage()
-            .instance()
-            .get(&DataKey::ShardRootBuffer(shard_id))
-            .unwrap_or_else(|| Vec::new(env));
-        if buffer.len() >= ROOT_BUFFER_SIZE {
-            buffer.remove(0);
-        }
-        buffer.push_back(root.clone());
-        env.storage()
-            .instance()
-            .set(&DataKey::ShardRootBuffer(shard_id), &buffer);
+        Self::push_shard_root(env, shard_id, &root);
 
         env.storage()
             .instance()
@@ -471,6 +454,39 @@ impl ReceiptAnchor {
         .publish(env);
 
         Ok(batch_id)
+    }
+
+    /// Guard against anchoring the same root twice in a row for this shard.
+    fn check_no_duplicate_root(
+        env: &Env,
+        shard_id: u64,
+        batch_count: u64,
+        root: &BytesN<32>,
+    ) -> Result<(), Error> {
+        if batch_count > 0 {
+            if let Ok(last_batch) = Self::get_batch(env.clone(), shard_id, batch_count) {
+                if last_batch.root == *root {
+                    return Err(Error::DuplicateRoot);
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Append `root` to this shard's ring buffer, evicting the oldest when full.
+    fn push_shard_root(env: &Env, shard_id: u64, root: &BytesN<32>) {
+        let mut buffer: Vec<BytesN<32>> = env
+            .storage()
+            .instance()
+            .get(&DataKey::ShardRootBuffer(shard_id))
+            .unwrap_or_else(|| Vec::new(env));
+        if buffer.len() >= ROOT_BUFFER_SIZE {
+            buffer.remove(0);
+        }
+        buffer.push_back(root.clone());
+        env.storage()
+            .instance()
+            .set(&DataKey::ShardRootBuffer(shard_id), &buffer);
     }
 
     /// Verifies a Groth16 zero-knowledge proof against public inputs and a verifying key.
