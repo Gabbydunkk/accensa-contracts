@@ -9,6 +9,10 @@ breaking changes bump the **minor** version, and they are called out as such.
 ## [Unreleased]
 
 ### Added
+- **Quadratic Voting Module**: Implemented integer square root voting power calculation for the Governance contract to prevent single-whale domination (issue #382).
+- **CI WASM Binary Size & Budget Check**: Added automated WASM binary size and CPU/memory budget assertion CI check with `scripts/check_wasm_budget.sh` and GitHub Actions `wasm-budget-inspect` job (issue #381).
+- **Timelock Delay Queue**: Added timelock delay queue for sensitive admin actions in multisig-account with `queue_transaction`, `execute_queued_transaction`, `cancel_queued_transaction`, and `approve_queued_transaction` functions (issue #383).
+- **Dynamic Threshold Rotation**: Implemented atomic multi-signer threshold reconfiguration in a single call to avoid insecure intermediate states (issue #384).
 - **Dual-Asset Support**: Added support for native XLM and SEP-41 tokens in RefundVault.
 - **Upto-Authorization Fuzzing**: Added extensive fuzz testing limits.
 - **VDF Slashing Penalty**: Accurate assessment of slashing penalty calculations.
