@@ -671,7 +671,7 @@ impl StateChannel {
         if channel.phase != ChannelPhase::Open && channel.phase != ChannelPhase::Disputed {
             return Err(Error::ChannelNotOpen);
         }
-        
+
         // ZK Verification logic simulation for off-chain settlement
         // In a real scenario, this would verify the proof against the commitment.
         let expected_hash = env.crypto().sha256(&proof.into());
