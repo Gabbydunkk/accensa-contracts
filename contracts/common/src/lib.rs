@@ -277,3 +277,4 @@ pub struct VaultInit {
 pub mod audit;
 pub mod blacklist;
 pub mod math;
+pub mod nonce;

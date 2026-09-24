@@ -662,3 +662,12 @@ impl StateChannel {
 }
 pub mod dispute;
 pub mod epoch;
+
+/// HTLC parameters for cross-chain swaps.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct HtlcAdapter {
+    pub hash_lock: BytesN<32>,
+    pub time_lock: u64,
+    pub amount: i128,
+}

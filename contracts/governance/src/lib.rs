@@ -480,3 +480,12 @@ impl Governance {
     }
 }
 // audit implementation
+
+/// Graceful downgrade strategy parameters for protocol upgrades.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DowngradeStrategy {
+    pub active_protocol_version: u32,
+    pub fallback_protocol_version: u32,
+    pub emergency_mode_enabled: bool,
+}
